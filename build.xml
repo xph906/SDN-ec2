@@ -176,10 +176,16 @@
     </target>
 
     <target name="run" depends="dist">
-        <java fork="true" jar="${floodlight-jar}" classpathref="classpath">
+        <!-- java fork="true" jar="${floodlight-jar}" classpathref="classpath" -->
+        <java fork="true" jar="${floodlight-jar}" >
             <jvmarg value="-server"/>
-            <jvmarg value="-Xms1024M"/>
-            <jvmarg value="-Xmx1024M"/>
+            <jvmarg value="-Xms2048M"/>
+            <jvmarg value="-Xmx2096M"/>
+          	<classpath>
+                <pathelement location="${lib}"/>
+                <pathelement location="${resources}"/>
+                <path refid="classpath"/>
+            </classpath>
         </java>
     </target>
 
@@ -243,6 +249,7 @@
                 <attribute name="Main-Class" value="${main-class}"/>
                 <attribute name="Class-Path" value="."/>
             </manifest>
+
             <fileset dir="${build}"/>
             <fileset dir="${resources}"/>
             <fileset dir="${python-src}">

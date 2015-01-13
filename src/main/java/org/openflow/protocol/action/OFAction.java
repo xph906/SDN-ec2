@@ -71,7 +71,7 @@ public class OFAction implements Cloneable {
 
     /**
      * Get the type of this message
-     *
+     *installPathForFlow(sw, pktInMsg);
      * @return OFActionType enum
      */
     public OFActionType getType() {

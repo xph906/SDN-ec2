@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import net.floodlightcontroller.connmonitor.Connection;
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import net.floodlightcontroller.core.IOFSwitch;
@@ -71,7 +72,10 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
                                           FloodlightContext cntx) {
         Ethernet eth = IFloodlightProviderService.bcStore.get(cntx,
                                    IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-
+        
+       // Connection conn = new Connection(eth);
+		//System.err.println("DEBUG Forwarding:"+conn);
+		
         // If a decision has been made we obey it
         // otherwise we just forward
         if (decision != null) {

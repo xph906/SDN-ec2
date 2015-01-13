@@ -192,6 +192,7 @@ public class FloodlightModuleLoader implements IModuleService {
             configMods = loadProperties(null, f, prop);
         } else {
             logger.info("Loading default modules");
+			//System.err.println("classpath:"+System.getProperty("java.class.path"));
             InputStream is = this.getClass().getClassLoader().
                                     getResourceAsStream(COMPILED_CONF_FILE);
             configMods = loadProperties(is, null, prop);

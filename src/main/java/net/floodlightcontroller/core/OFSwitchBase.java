@@ -776,13 +776,14 @@ public abstract class OFSwitchBase implements IOFSwitch {
             msg_buffer = new ArrayList<OFMessage>();
             msg_buffer_map.put(this, msg_buffer);
         }
-
+        //System.err.println("debug write: "+msg_buffer);
         this.floodlightProvider.handleOutgoingMessage(this, m, bc);
         msg_buffer.add(m);
 
         if ((msg_buffer.size() >= Controller.BATCH_MAX_SIZE) ||
             ((m.getType() != OFType.PACKET_OUT) && (m.getType() != OFType.FLOW_MOD))) {
             this.write(msg_buffer);
+            
             msg_buffer.clear();
         }
     }
