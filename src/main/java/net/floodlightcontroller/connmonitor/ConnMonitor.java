@@ -189,7 +189,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
-		System.err.println("switch id is: "+sw.getId());
+		//System.err.println("switch id is: "+sw.getId());
 		if(sw.getId() == NW_SW){
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
@@ -197,17 +197,20 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Connection conn = new Connection(eth);
 			if(conn.srcIP==0 || conn.type==Connection.INVALID){
 				droppedCounter++;
+				System.err.println("3:"+conn);
 				return Command.CONTINUE;
 			}
 
 			//only deal with udp and tcp
 			if((conn.getProtocol()!= 0x11) && (conn.getProtocol()!= 0x06)){
+				System.err.println("4:"+conn);
 				return Command.CONTINUE;
 			}
 			
 			HoneyPot pot = getHoneypotFromConnection(conn);
 			if(pot == null){
 				droppedCounter++;
+				System.err.println("2:"+conn);
 				return Command.CONTINUE;
 			}
 			conn.setHoneyPot(pot);
@@ -236,6 +239,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 								logger.LogDebug("hit open IP: "+ IPv4.fromIPv4Address(conn.srcIP)+" "+IPv4.fromIPv4Address(conn.dstIP));
 							}
 							else{
+								System.err.println("1:"+conn);
 								return Command.CONTINUE;
 							}
 						}
@@ -298,6 +302,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				}
 				else{
 					logger.LogError("shouldn't come here 2 "+conn);
+					System.err.println("5:"+conn);
 					return Command.CONTINUE;
 				}
 			}
