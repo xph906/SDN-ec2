@@ -87,7 +87,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static short DROP_PRIORITY = 1;
 	//static short HIGH_DROP_PRIORITY = 100;
 	//static short HIGH_DROP_TIMEOUT = 300;
-	static long NW_SW = 218708412634432L;
+	static long NW_SW = 130650748906319L;
 	
 	static int CONN_MAX_SIZE = 100000;
 	static String hih_manager_url = "http://localhost:55551/inform";
