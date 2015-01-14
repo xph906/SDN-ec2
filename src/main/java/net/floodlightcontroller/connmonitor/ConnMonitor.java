@@ -79,52 +79,45 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static short HIH_IDLE_TIMEOUT = 60;
 	static short DELTA = 50;
 	static long CONN_TIMEOUT = 300000;
-	static short HIGH_PRIORITY = 20;
-	static short DEFAULT_PRIORITY = 5;
-	static short DROP_PRIORITY = 0;
-	static short HIGH_DROP_PRIORITY = 100;
-	static short HIGH_DROP_TIMEOUT = 300;
+	
+	//static short HIGH_PRIORITY = 100;
+	static short DEFAULT_PRIORITY = 30;
+	static short CONTROLLER_PRIORITY = 20;
+	static short NORMAL_PRIORITY = 10;
+	static short DROP_PRIORITY = 1;
+	//static short HIGH_DROP_PRIORITY = 100;
+	//static short HIGH_DROP_TIMEOUT = 300;
 	static long NW_SW = 218708412634432L;
 	
-	
-	//static long LASSEN_SW = 203050741063572L;
-	//static long MISSOURI_SW = 161340422318L;
 	static int CONN_MAX_SIZE = 100000;
 	static String hih_manager_url = "http://localhost:55551/inform";
 	static String honeypotConfigFileName = "honeypots.config";
 	static String PortsConfigFileName = "ports.config";
-/*	
-	static byte[] lassen_mac_address = {(byte)0xb8,(byte) 0xac,(byte)0x6f,(byte)0x4a,(byte) 0xdf,(byte) 0x94};
-	static short lassen_default_out_port = 9; //port number for eth0
-	static byte[] missouri_mac_address = {(byte)0x00, (byte)0x25, (byte)0x90, (byte)0xA3, (byte)0x78, (byte)0xAE};
-	static short missouri_default_out_port = 1;
-	static byte[] nc_mac_address = {(byte)0x00, (byte)0x30, (byte)0x48, (byte)0x30, (byte)0x03, (byte)0xAF};
-	
-	static byte[] honeypot_net = {(byte)192,(byte)168,(byte)1, (byte)0};
-	static int honeypot_net_mask = 8;
-	static byte[] public_honeypot_net = {(byte)130, (byte)107, (byte)0, (byte)0};
-	static int public_honeypot_net_mask = 16;
-*/	
-	static short gre_port = 6;
-	static byte[] sri_ip = {(byte)130,(byte)107,(byte)12,(byte)105};
 
+	static short outside_port = 2; //eth0
+	
 	static byte[] honeypot_net = {(byte)192,(byte)168,(byte)1, (byte)0};
 	static int honeypot_net_mask = 8;
-	static byte[] public_honeypot_net = {(byte)130, (byte)107, (byte)240, (byte)0};
-	static int public_honeypot_net_mask = 12;
+	static byte[] sri_net = {(byte)130, (byte)107, (byte)240, (byte)0};
+	static int sri_net_mask = 12;
 	
-	//c6:ea:05:3e:95:40
-	static byte[] nwbr_mac_address = {(byte)0xc6,(byte) 0xea,(byte)0x05,(byte)0x3e,(byte) 0x95,(byte) 0x40};
-	static short nw_default_out_port = 3; //port number for eth1
-	//52:54:00:74:b8:d8
-	static byte[] nweth_mac_address = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x74, (byte)0xb8, (byte)0xd8};
-	static short nweth_default_out_port = 3;
-	static byte[] nweth_ip = {(byte)192,(byte)168,(byte)1, (byte)11};
+	//00:00:0c:07:ac:66
+	static byte[] nw_gw_mac_address = {(byte)0x00,(byte) 0x00,(byte)0x0c,(byte)0x07,(byte) 0xac,(byte) 0x66};
+	static byte[] nw_gw_ip = {(byte)129,(byte)105,(byte)44, (byte)193};
+	
+	static byte[] nw_ip = {(byte)129,(byte)105,(byte)44, (byte)107};
+	static byte[] nw_net = {(byte)129,(byte)105,(byte)44, (byte)0};
+	static int nw_net_mask = 8;
+	
+	//eth1: 52:54:00:74:b8:d8
+	//static byte[] vent_honeyd_mac = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x74, (byte)0xb8, (byte)0xd8};
+	//static short vnet_honeyd_port = 3;
+	//static byte[] vnet_honeyd_ip = {(byte)192,(byte)168,(byte)1, (byte)11};
 
 	//52:54:00:6a:2f:7b
-	static byte[] honeyd_mac_address = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x6a, (byte)0x2f, (byte)0x7b};
-	static byte[] honeyd_ip = {(byte)192,(byte)168,(byte)1, (byte)10};
-	static byte[] honeyd_virtual_ip = {(byte)192,(byte)168,(byte)1, (byte)12};
+	//static byte[] honeyd_mac = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x6a, (byte)0x2f, (byte)0x7b};
+	//static byte[] honeyd_ip = {(byte)192,(byte)168,(byte)1, (byte)10};
+	//static byte[] honeyd_virtual_ip = {(byte)192,(byte)168,(byte)1, (byte)12};
 	
 	/*
 	 * These five tables' sizes are fixed.
@@ -196,6 +189,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
+		System.err.println("switch id: "+sw.getId());
 		if(sw.getId() == NW_SW){
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
@@ -224,6 +218,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			
 			if(connMap.containsKey(key)){	
 				e2IFlow = connMap.get(key);
+				System.err.println("Contains Key: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
+							" dst:"+IPv4.fromIPv4Address(conn.dstIP));
 				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
 					String connKey = 
 							Connection.createConnKeyString(conn.getDstIP(), conn.getDstPort(), e2IFlow.dstIP, conn.getSrcPort());
@@ -272,6 +268,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				}
 			}
 			else{ //no such connection
+				System.err.println("Create new rule: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
+						" dst:"+IPv4.fromIPv4Address(conn.dstIP));
 				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
 					connMap.put(key, conn);
 					clearMaps();
@@ -326,11 +324,10 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 					OFMatch.OFPFW_NW_TOS |   
 					OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
-				//newDstMAC = nweth_mac_address;
-				//outPort = pktInMsg.getInPort();
-				outPort = gre_port;
+				newDstMAC = nw_gw_mac_address;
+				outPort = outside_port;
 				byte[] newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,HIGH_PRIORITY);
+				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 					
 				match = new OFMatch();	
 				match.setDataLayerType((short)0x0800);
@@ -344,15 +341,16 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 						 OFMatch.OFPFW_NW_TOS |   
 						OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP);
-				newDstMAC = honeyd_mac_address;
+				newDstMAC = conn.getHoneyPot().getMacAddress();
 				newDstIP = conn.getHoneyPot().getIpAddress();
 				outPort = conn.getHoneyPot().getOutPort();
-				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,HIGH_PRIORITY);			
+				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 				result1 &= result2;
 			}
 			else if(conn.type == Connection.INTERNAL_TO_EXTERNAL){
 				match = new OFMatch();
 				//FIXME: no need to set strict match here
+				//FIXME: add two side rules
 				match.setDataLayerType((short)0x0800);
 				match.setNetworkDestination(conn.dstIP);
 				match.setNetworkSource(e2IFlow.getHoneyPot().getIpAddrInt());
@@ -365,10 +363,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						OFMatch.OFPFW_NW_TOS |   
 						OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
 				
-				newDstMAC = nweth_mac_address;
-				//outPort = pktInMsg.getInPort();
-				outPort = gre_port;
-				result1 = installPathForFlow(sw.getId(), pktInMsg.getInPort(),match,(short)0,(long)0,newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,HIGH_PRIORITY);
+				newDstMAC = nw_gw_mac_address;
+				outPort = outside_port;
+				result1 = installPathForFlow(sw.getId(), pktInMsg.getInPort(),match,(short)0,(long)0,newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 			}
 			else{
 				logger.LogError("shouldn't come here 3 "+conn);
@@ -408,8 +405,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	private HoneyPot getHoneypotFromConnection(Connection conn){
 		if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
 			short dport = conn.getDstPort();
-			int dstIP = conn.getDstIP();
-			int flag = (dstIP>>8)&0x000000e0;
+			//int dstIP = conn.getDstIP();
+			int srcIP = conn.getSrcIP();
+			int flag = (srcIP>>8)&0x000000e0;
 			
 			/* if we have records for this connection, use existing honeypot */
 			String key = 
@@ -425,15 +423,15 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			if(ports.containsKey(dport)){
 				Vector<HoneyPot> pots = ports.get(dport);
 				for(HoneyPot pot : pots){	
-					if(pot.getMask().containsKey(dport) && pot.getMask().get(dport).inSubnet(dstIP)){
+					if(pot.getMask().containsKey(dport) && pot.getMask().get(dport).inSubnet(srcIP)){
 						return pot;
 					}
 				}
-				logger.LogError("can't address dstIP "+IPv4.fromIPv4Address(dstIP)+ dport+" ");
+				logger.LogError("can't address srcIP "+IPv4.fromIPv4Address(srcIP)+ dport+" ");
 				for(HoneyPot pot : pots){	
 					logger.LogError(pot.getName()+" containsKey:"+pot.getMask().containsKey(dport));
 					if(pot.getMask().containsKey(dport))
-						logger.LogError(pot.getName()+" :"+pot.getMask().get(dport)+" "+pot.getMask().get(dport).inSubnet(dstIP));
+						logger.LogError(pot.getName()+" :"+pot.getMask().get(dport)+" "+pot.getMask().get(dport).inSubnet(srcIP));
 				}
 				return null;
 			}
@@ -458,15 +456,17 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 	
 	private boolean initNWSwitch(long switchId){
+		
+		//e2i to controller
 		IOFSwitch sw = floodlightProvider.getSwitch(switchId);
 		OFMatch match = new OFMatch();	
 		match.setDataLayerType((short)0x0800);
-		//match.setNetworkSource(IPv4.toIPv4Address(honeypot_net));
-		match.setNetworkSource(IPv4.toIPv4Address(sri_ip));
+		match.setNetworkDestination(IPv4.toIPv4Address(nw_ip));
+		match.setNetworkSource(IPv4.toIPv4Address(sri_net));
 		match.setWildcards(	
 				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_DST_ALL |
+				OFMatch.OFPFW_NW_DST_ALL | sri_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
@@ -474,52 +474,118 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		byte[] newDstIP = null;
 		byte[] newSrcIP = null;
 		//short outPort = OFPort.OFPP_FLOOD.getValue();
-		short outPort = gre_port;
-		//short outPort = OFPort.OFPP_CONTROLLER.getValue();
+		short outPort = OFPort.OFPP_CONTROLLER.getValue();
 		boolean result = 
-				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,(short)100);
+				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
 		
 		if(!result){
-			logger.LogError("fail to create default rule1 for MISSOURI 1");
+			logger.LogError("fail to create default rule1 for NW");
+			System.exit(1);
+			return false;
+		}
+		
+		// i2e to controller
+		match = new OFMatch();	
+		match.setDataLayerType((short)0x0800);
+		match.setNetworkSource(IPv4.toIPv4Address(honeypot_net));
+		match.setNetworkDestination(IPv4.toIPv4Address(sri_net));
+		match.setWildcards(	
+				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
+				sri_net_mask<<OFMatch.OFPFW_NW_DST_SHIFT | honeypot_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
+				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
+				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
+				OFMatch.OFPFW_IN_PORT);
+		outPort = OFPort.OFPP_CONTROLLER.getValue();
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
+		if(!result){
+			logger.LogError("fail to create default rule2 for NW");
+			System.exit(1);
+			return false;
+		}
+		
+		// nw inner NORMAL
+		match = new OFMatch();	
+		match.setDataLayerType((short)0x0800);
+		match.setNetworkSource(IPv4.toIPv4Address(nw_net));
+		match.setWildcards(	
+				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
+				OFMatch.OFPFW_NW_DST_ALL | nw_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
+				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
+				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
+				OFMatch.OFPFW_IN_PORT);
+		outPort = OFPort.OFPP_NORMAL.getValue();
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		if(!result){
+			logger.LogError("fail to create default rule3 for NW");
 			System.exit(1);
 			return false;
 		}
 		
 		match = new OFMatch();	
 		match.setDataLayerType((short)0x0800);
-		match.setNetworkSource(IPv4.toIPv4Address(honeypot_net));
+		match.setNetworkDestination(IPv4.toIPv4Address(nw_net));
 		match.setWildcards(	
 				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_DST_ALL| honeypot_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
+				OFMatch.OFPFW_NW_SRC_ALL | nw_net_mask<<OFMatch.OFPFW_NW_DST_SHIFT|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
-		outPort = OFPort.OFPP_CONTROLLER.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,(short)5);
+		outPort = OFPort.OFPP_NORMAL.getValue();
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		if(!result){
+			logger.LogError("fail to create default rule4 for NW");
+			System.exit(1);
+			return false;
+		}
+		
+		//arp
+		match = new OFMatch();	
+		match.setDataLayerType((short)0x0806);
+		match.setWildcards(	
+				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
+				OFMatch.OFPFW_NW_DST_ALL | OFMatch.OFPFW_NW_SRC_ALL|
+				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
+				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
+				OFMatch.OFPFW_IN_PORT);
+		outPort = OFPort.OFPP_NORMAL.getValue();
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		if(!result){
+			logger.LogError("fail to create default rule5 for NW");
+			System.exit(1);
+			return false;
+		}
 		
 		match = new OFMatch();	
-		match.setDataLayerType((short)0x0800);
-		match.setNetworkDestination(IPv4.toIPv4Address(public_honeypot_net)); 
+		match.setDataLayerType((short)0x8035);
 		match.setWildcards(	
 				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_SRC_ALL| public_honeypot_net_mask<<OFMatch.OFPFW_NW_DST_SHIFT|
+				OFMatch.OFPFW_NW_DST_ALL | OFMatch.OFPFW_NW_SRC_ALL|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,(short)5);
-		
+		outPort = OFPort.OFPP_NORMAL.getValue();
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
 		if(!result){
-			logger.LogError("fail to create default rule1 for MISSOURI 2");
+			logger.LogError("fail to create default rule6 for NW");
 			System.exit(1);
 			return false;
 		}
 		
 		match = new OFMatch();
-		match.setWildcards(OFMatch.OFPFW_ALL); 
-		return true;
-		//return installDropRule(sw.getId(),match,(short)0,(short)0,DROP_PRIORITY);
+		match.setWildcards(	
+				OFMatch.OFPFW_DL_TYPE | OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
+				OFMatch.OFPFW_NW_DST_ALL | OFMatch.OFPFW_NW_SRC_ALL|
+				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
+				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
+				OFMatch.OFPFW_IN_PORT);
+		
+		return installDropRule(sw.getId(),match,(short)0,(short)0, DROP_PRIORITY);
 	}
 	
 	

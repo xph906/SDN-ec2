@@ -99,13 +99,13 @@ public class Connection {
 			if((src1==INTERNAL_MASK[0]) && (src2==INTERNAL_MASK[1]) && (dst1==INTERNAL_MASK[0]) && (dst2==INTERNAL_MASK[1])){
 				type = INVALID;
 			}
-			else if((dst1==EXTERNAL_MASK[0]) && (dst2==EXTERNAL_MASK[1]) ){
+			else if((src1==EXTERNAL_MASK[0]) && (src2==EXTERNAL_MASK[1]) ){
 				type = EXTERNAL_TO_INTERNAL;
-			//	System.err.println("e2i "+IPv4.fromIPv4Address(dstIP));
+				System.err.println("E2I "+IPv4.fromIPv4Address(dstIP));
 			}
-			else if((src1==INTERNAL_MASK[0]) && (src2==INTERNAL_MASK[1]) ){
+			else if((src1==INTERNAL_MASK[0]) && (src2==INTERNAL_MASK[1]) && (dst1==EXTERNAL_MASK[0]) && (dst2==EXTERNAL_MASK[1]) ){
 				type = INTERNAL_TO_EXTERNAL;
-			//	System.err.println("i2e "+IPv4.fromIPv4Address(srcIP));
+				System.err.println("I2E "+IPv4.fromIPv4Address(srcIP));
 			}
 			else{
 			//	System.err.println("Invalid connection "+
