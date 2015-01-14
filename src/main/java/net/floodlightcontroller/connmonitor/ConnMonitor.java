@@ -189,7 +189,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
-		System.err.println("switch id: "+sw.getId());
+		System.err.println("switch id is: "+sw.getId());
 		if(sw.getId() == NW_SW){
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
