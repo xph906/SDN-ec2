@@ -185,6 +185,30 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		int dstIP = ((130<<24) | (107<<16) | (c<<8) | d);
 		return dstIP;
 	}
+	private byte extractStateFromEthernet(Ethernet eth){
+        IPacket pkt = eth.getPayload();
+
+        if(pkt instanceof IPv4){
+            IPv4 ip_pkt = (IPv4)pkt;
+            byte dscp = ip_pkt.getDiffServ();
+            return dscp;
+        }
+        else{
+        	return (byte)0x00;
+        }
+	}
+	private short extractIDFromEthernet(Ethernet eth){
+        IPacket pkt = eth.getPayload();
+
+        if(pkt instanceof IPv4){
+            IPv4 ip_pkt = (IPv4)pkt;
+            short id = ip_pkt.getIdentification();
+            return id;
+        }
+        else{
+        	return (short)0x00;
+        }
+	}
 	
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
@@ -197,20 +221,20 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Connection conn = new Connection(eth);
 			if(conn.srcIP==0 || conn.type==Connection.INVALID){
 				droppedCounter++;
-				System.err.println("3:"+conn);
+				System.err.println("give up beacause of not effective connection:"+conn);
 				return Command.CONTINUE;
 			}
 
 			//only deal with udp and tcp
 			if((conn.getProtocol()!= 0x11) && (conn.getProtocol()!= 0x06)){
-				System.err.println("4:"+conn);
+				System.err.println("give up because of not ip:"+conn);
 				return Command.CONTINUE;
 			}
 			
 			HoneyPot pot = getHoneypotFromConnection(conn);
 			if(pot == null){
 				droppedCounter++;
-				System.err.println("2:"+conn);
+				System.err.println("give up because of no appropriate pot:"+conn);
 				return Command.CONTINUE;
 			}
 			conn.setHoneyPot(pot);
@@ -219,93 +243,110 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Connection e2IFlow = null;
 			byte[] srcIP = null;
 			
+			boolean forward_packet = false;
+			boolean install_rules = false;
+			
 			if(connMap.containsKey(key)){	
 				e2IFlow = connMap.get(key);
-				System.err.println("Contains Key: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
-							" dst:"+IPv4.fromIPv4Address(conn.dstIP));
+				srcIP = IPv4.toIPv4AddressBytes(e2IFlow.getSrcIP());
+				System.err.println("Contains Key:" + conn.getConnectionSimplifiedKeyString());
 				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
-					String connKey = 
-							Connection.createConnKeyString(conn.getDstIP(), conn.getDstPort(), e2IFlow.dstIP, conn.getSrcPort());
-					if(connToPot.containsKey(connKey) && (connToPot.get(connKey).pot.getName().equals(conn.pot.getName())) ){
-						connToPot.get(connKey).updateTime();
+					byte conn_state = e2IFlow.getState();
+					byte state = extractStateFromEthernet(eth);
+					short id = extractIDFromEthernet(eth);
+					if((conn_state==0x03) && (state==0x00) ){
+						System.err.println("non constructor packet, and the path is ready");
+						install_rules = true;
+						forward_packet = true;
 					}
-					else if((e2IFlow.dstIP != conn.dstIP)){
-						if(e2IFlow.isConnExpire(CONN_TIMEOUT)){
-							connMap.put(key, conn);
+					else if(conn_state==0x03){
+						System.err.println("constructor packet, but the path is ready");
+						install_rules = false;
+						forward_packet = false;
+					}
+					else if(state == 0x00){
+						System.err.println("non constructor packet, but the path is not ready");
+						install_rules = false;
+						forward_packet = false;
+					}
+					else if(conn_state == state){
+						System.err.println("repeated constructor packet and path is not ready");
+						install_rules = false;
+						forward_packet = false;
+					}
+					else{
+						if(state == 0x01){
+							System.err.println("useful constructor packet ");
+							e2IFlow.setState((byte)(state|conn_state));
+							int tmp_ip = (id&0xffff0000) |e2IFlow.getOriginalIP() ;
+							e2IFlow.setOriginalIP(tmp_ip);
+						}
+						else if(state == 0x02){
+							System.err.println("useful constructor packet ");
+							e2IFlow.setState((byte)(state|conn_state));
+							int tmp_ip = id&0x0000ffff |e2IFlow.getOriginalIP();
+							e2IFlow.setOriginalIP(tmp_ip);
 						}
 						else{
-							int openIP = getOpenAddress(conn.srcIP);
-							if(openIP == conn.dstIP){
-								logger.LogDebug("hit open IP: "+ IPv4.fromIPv4Address(conn.srcIP)+" "+IPv4.fromIPv4Address(conn.dstIP));
-							}
-							else{
-								System.err.println("1:"+conn);
-								return Command.CONTINUE;
-							}
+							System.err.println("state error "+state);
 						}
-					}
-					else
-					{
-						e2IFlow.updateTime();
+						forward_packet = false;
+						if(e2IFlow.getState()==0x03){
+							
+							String real_src = IPv4.fromIPv4Address(e2IFlow.getOriginalIP());
+							String real_dst = IPv4.fromIPv4Address(e2IFlow.getDstIP());
+							System.err.println("path is ready:"+real_src+":"+e2IFlow.srcPort+"=>"+real_dst+":"+real_dst);
+							install_rules = true;
+						}
+						
 					}
 				}
 				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
-					srcIP = IPv4.toIPv4AddressBytes(e2IFlow.dstIP);
-					if(e2IFlow.getHoneyPot()==null){
-						e2IFlow.setHoneyPot(getHoneypotFromConnection(e2IFlow));
-					}	
-					String connKey = 
-							Connection.createConnKeyString(conn.getDstIP(), conn.getDstPort(), e2IFlow.dstIP, conn.getSrcPort());
-					
-					if(connToPot.containsKey(connKey)){
-						if(connToPot.get(connKey).getHoneyPot().getName().equals( conn.getHoneyPot().getName())){
-							connToPot.get(connKey).updateTime();
-						}
-						else{
-							connToPot.put(connKey, conn);
-						}
-					}
-					else{
-						connToPot.put(connKey, conn);
-					}
-					clearMaps();
+					System.err.println("[old]Ignore I2E connections temporarily");
 				}
-			}
-			else{ //no such connection
-				System.err.println("Create new rule: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
+			}/* has found such connection */
+			else{ /* no such connection */
+				System.err.println("New connection: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
 						" dst:"+IPv4.fromIPv4Address(conn.dstIP));
 				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
 					connMap.put(key, conn);
+					byte state = extractStateFromEthernet(eth);
+					short id = extractIDFromEthernet(eth);
+					if(state==0x00){
+						System.err.println(conn+" first packet, but state is zero, give up!");
+					}
+					else if(state==0x01){
+						conn.setState(state);
+						System.err.println(conn+" first packet, set state "+state+" ");
+						int tmp_ip = id<<16;
+						conn.setOriginalIP(tmp_ip);
+					}
+					else if(state == 0x02){
+						conn.setState(state);
+						System.err.println(conn+" first packet, set state "+state);
+						int tmp_ip = id&0x0000ffff;
+						conn.setOriginalIP(tmp_ip);
+					}
+					install_rules = false;
+					forward_packet = false;
 					clearMaps();
 					//logger.info("2 new e2i connection, assigned to "+key+" "+conn);
 				}
 				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
-					conn.setSrcIP(conn.getHoneyPot().getDownloadAddrInt());
-					e2IFlow = new Connection(conn);
-					e2IFlow.setHoneyPot(conn.getHoneyPot());				
-					
-					srcIP = pot.getDownloadAddress();
-					String connKey = 
-							Connection.createConnKeyString(conn.getDstIP(), conn.getDstPort(), 
-											conn.getHoneyPot().getDownloadAddrInt(), conn.getSrcPort());
-					if(connToPot.containsKey(connKey)){
-						if(connToPot.get(connKey).getHoneyPot().getName().equals( conn.getHoneyPot().getName())){
-							connToPot.get(connKey).updateTime();
-						}
-						else{
-							connToPot.put(connKey, conn);
-						}
-					}
-					else{
-						connToPot.put(connKey, conn);
-					}
+					System.err.println("[new]Ignore I2E connections temporarily");
+					install_rules = false;
+					forward_packet = false;
 				}
 				else{
 					logger.LogError("shouldn't come here 2 "+conn);
 					System.err.println("5:"+conn);
 					return Command.CONTINUE;
 				}
-			}
+			}/*No such connections*/
+			
+			/*Not installing rules implies not installing forwarding packet*/
+			if(install_rules==false)
+				return Command.CONTINUE;
 			
 			OFPacketIn pktInMsg = (OFPacketIn)msg;
 			OFMatch match = null;
@@ -349,35 +390,21 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				newDstMAC = conn.getHoneyPot().getMacAddress();
 				newDstIP = conn.getHoneyPot().getIpAddress();
 				outPort = conn.getHoneyPot().getOutPort();
-				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,null,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 				result1 &= result2;
 			}
 			else if(conn.type == Connection.INTERNAL_TO_EXTERNAL){
-				match = new OFMatch();
-				//FIXME: no need to set strict match here
-				//FIXME: add two side rules
-				match.setDataLayerType((short)0x0800);
-				match.setNetworkDestination(conn.dstIP);
-				match.setNetworkSource(e2IFlow.getHoneyPot().getIpAddrInt());
-				match.setInputPort(pktInMsg.getInPort());
-				match.setTransportSource(conn.srcPort);
-				match.setTransportDestination(conn.dstPort);
-				match.setNetworkProtocol(conn.getProtocol());
-				match.setWildcards(	
-						OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-						OFMatch.OFPFW_NW_TOS |   
-						OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
+				System.err.println("ignoring installing rules ofr I2E flows");
 				
-				newDstMAC = nw_gw_mac_address;
-				outPort = outside_port;
-				result1 = installPathForFlow(sw.getId(), pktInMsg.getInPort(),match,(short)0,(long)0,newDstMAC,newDstIP,srcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 			}
 			else{
 				logger.LogError("shouldn't come here 3 "+conn);
 				return Command.CONTINUE;
 			}
-			//forwardPacket(sw,pktInMsg, dstMAC,dstIP,srcIP,outPort);
-			boolean result2 = forwardPacket(sw,pktInMsg, newDstMAC,newDstIP,srcIP,outPort);
+ 			
+ 			boolean result2 = true;
+ 			if(forward_packet)
+ 				result2 = forwardPacket(sw,pktInMsg, newDstMAC,newDstIP,srcIP,outPort);
 			
 			if(!result1 || !result2){
 				logger.LogError("fail to install rule for "+conn);

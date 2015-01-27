@@ -14,6 +14,8 @@ public class Connection {
 	int dstIP, srcIP;
 	short srcPort, dstPort;
 	String errorInfo;
+	
+
 	byte protocol;
 	//int honeypotIP;
 	int e2iCount;
@@ -22,6 +24,9 @@ public class Connection {
 	private long startTime;
 	//static Date currentTime = new Date();
 	byte flag;
+	
+	int originalIP;
+	byte state;
 	
 	short type;
 	static short EXTERNAL_TO_INTERNAL = 1;
@@ -47,6 +52,7 @@ public class Connection {
 		dstPort = i2eConn.srcPort;
 		srcIP = i2eConn.dstIP;
 		srcPort = i2eConn.dstPort;
+		
 		startTime = System.currentTimeMillis();
 		
 		if(i2eConn.type != INTERNAL_TO_EXTERNAL){
@@ -75,6 +81,8 @@ public class Connection {
 		srcPort = 0;
 		dstPort = 0;
 		protocol = 0;
+		originalIP = 0;
+		state = 0;
 		type = INVALID;
 		//honeypotIP = 0;
 		e2iCount = 0;
@@ -82,14 +90,13 @@ public class Connection {
 		pot = null;
 		startTime = System.currentTimeMillis();
 		flag = 0;
-		boolean externalConn = true;
+
 		IPacket pkt = eth.getPayload();
 		if(pkt instanceof IPv4){	 
 			//System.out.println("debug... receive packet tcp");
 			IPv4 ip = (IPv4)pkt;
 			dstIP = ip.getDestinationAddress();
 			srcIP = ip.getSourceAddress();
-			
 			
 			int src1 = (srcIP>>24)&0xff;
 			int src2 = (srcIP>>16)&0xff;
@@ -101,23 +108,15 @@ public class Connection {
 			}
 			else if((src1==EXTERNAL_MASK[0]) && (src2==EXTERNAL_MASK[1]) ){
 				type = EXTERNAL_TO_INTERNAL;
-				//System.err.println("E2I "+IPv4.fromIPv4Address(dstIP));
 			}
 			else if((src1==INTERNAL_MASK[0]) && (src2==INTERNAL_MASK[1]) && (dst1==EXTERNAL_MASK[0]) && (dst2==EXTERNAL_MASK[1]) ){
 				type = INTERNAL_TO_EXTERNAL;
-				//System.err.println("I2E "+IPv4.fromIPv4Address(srcIP));
 			}
 			else{
-			//	System.err.println("Invalid connection "+
-			//						IPv4.fromIPv4Address(srcIP)+
-			//						" "+IPv4.fromIPv4Address(dstIP));
+				type = INVALID;
 			}
 			
-		//	String str = IPv4.fromIPv4Address(srcIP);
-		//	if(str.startsWith("192.168.1.4")){
-		//		System.err.println(str+" "+type);
-		//	}
-				
+
 			IPacket ip_pkt = ip.getPayload();
 			if(ip_pkt instanceof TCP){
 				TCP tcp = (TCP)ip_pkt;
@@ -143,6 +142,10 @@ public class Connection {
 		//	 System.err.println("debug... packet is not tcp/udp "+pkt);
 		 }
 	} 
+	public void setState(byte pkt_state){
+		state = pkt_state;
+	}
+	
 	public HoneyPot getHoneyPot(){
 		return pot;
 	}
@@ -168,6 +171,7 @@ public class Connection {
 		this.protocol = protocol;
 	}
 	
+	
 	static long getConnectionSimplifiedKey(String e_ip,String pot_ip){
 		int left_ip = IPv4.toIPv4Address(e_ip);
 		int right_ip = IPv4.toIPv4Address(pot_ip);
@@ -178,46 +182,51 @@ public class Connection {
 		return rs;
 	}
 	
-	//src_ip
+	//A:portA => M:portM  ===>   M:portA => NW:portM
+	//B:portA => M:portM  ===>   M:portA => NW:portM
+	//Key: M:portA:portM
 	public long getConnectionSimplifiedKey(){
 		long rs = 0;
-		
+		long rs2 = 0;
+		long rs3 = 0;
 		if(type == EXTERNAL_TO_INTERNAL){
-			if(pot!=null){
-				rs = srcIP & 0x00000000ffffffffL;
-				rs <<= 32;
-				rs |= (pot.getIpAddrInt() & 0x00000000ffffffffL);
-				
-				//System.err.println("right:"+Long.toBinaryString(right));
-				//System.err.println(Long.toBinaryString(rs));
-				//rs = rs | right;
-				//rs |= pot.getIpAddrInt();
-				/*String str1 = Long.toBinaryString(rs);
-				String str2 = Integer.toBinaryString(srcIP);
-				String str3 = Integer.toBinaryString(pot.getIpAddrInt());
-				System.err.println("DEBUG getKEY: "+rs+" "+IPv4.fromIPv4Address(srcIP)+" "+IPv4.fromIPv4Address(pot.getIpAddrInt()));
-				System.err.println("DEBUG1: "+str1);
-				System.err.println("DEBUG2: "+str2+" "+str3);*/
-			}	
-			else{
-				rs = srcIP & 0x00000000ffffffffL;
-				rs <<= 32;
-			}
-				
+			rs = srcIP & 0x00000000ffffffffL;
+			rs <<= 32;
+			rs2 = srcPort & 0x000000000000ffffL;
+			rs2 <<= 16;
+			rs3 = dstPort & 0x000000000000ffffL;
+			rs = rs | rs2 | rs3;		
 		}
 		else if(type == INTERNAL_TO_EXTERNAL){
-			if(pot!=null){
-				rs = dstIP & 0x00000000ffffffffL;
-				rs <<= 32;
-				rs |= (pot.getIpAddrInt() & 0x00000000ffffffffL);
-				//System.err.println("DEBUG getKEY: "+rs+" "+IPv4.fromIPv4Address(srcIP)+" "+IPv4.fromIPv4Address(pot.getIpAddrInt()));
-			}	
-			else{
-				rs = dstIP & 0x00000000ffffffffL;
-				rs <<= 32;
-			}
+			rs = dstIP & 0x00000000ffffffffL;
+			rs <<= 32;
+			rs2 = dstPort & 0x000000000000ffffL;
+			rs2 <<= 16;
+			rs3 = srcPort & 0x000000000000ffffL;
+			rs = rs | rs2 | rs3;	
 		}
 		return rs;
+	}
+	public String getConnectionSimplifiedKeyString(){
+		if(type == EXTERNAL_TO_INTERNAL){
+			StringBuilder sb = new StringBuilder();
+			sb.append(srcIP);
+			sb.append(":");
+			sb.append(srcPort);
+			sb.append(":");
+			sb.append(dstPort);
+			return sb.toString();
+		}
+		else if(type == INTERNAL_TO_EXTERNAL){
+			StringBuilder sb = new StringBuilder();
+			sb.append(dstIP);
+			sb.append(":");
+			sb.append(dstPort);
+			sb.append(":");
+			sb.append(srcPort);
+			return sb.toString();	
+		}
+		return null;
 	}
 	
 	public String getConnectionKey(){
@@ -336,5 +345,17 @@ public class Connection {
 			//System.err.println("current "+curTime+"  expire "+timeout);
 		}
 		return false;
+	}
+	
+	public int getOriginalIP() {
+		return originalIP;
+	}
+
+	public void setOriginalIP(int originalIP) {
+		this.originalIP = originalIP;
+	}
+
+	public byte getState() {
+		return state;
 	}
 }
