@@ -254,12 +254,12 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					byte conn_state = e2IFlow.getState();
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
-					if((conn_state==0x03) && (state==0x00) ){
+					if((conn_state==0x0C) && (state==0x00) ){
 						System.err.println("non constructor packet, and the path is ready");
 						install_rules = true;
 						forward_packet = true;
 					}
-					else if(conn_state==0x03){
+					else if(conn_state==0x0C){
 						System.err.println("constructor packet, but the path is ready");
 						install_rules = false;
 						forward_packet = false;
@@ -275,13 +275,13 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						forward_packet = false;
 					}
 					else{
-						if(state == 0x01){
+						if(state == 0x04){
 							System.err.println("useful constructor packet ");
 							e2IFlow.setState((byte)(state|conn_state));
 							int tmp_ip = (id&0xffff0000) |e2IFlow.getOriginalIP() ;
 							e2IFlow.setOriginalIP(tmp_ip);
 						}
-						else if(state == 0x02){
+						else if(state == 0x08){
 							System.err.println("useful constructor packet ");
 							e2IFlow.setState((byte)(state|conn_state));
 							int tmp_ip = id&0x0000ffff |e2IFlow.getOriginalIP();
@@ -291,7 +291,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 							System.err.println("state error "+state);
 						}
 						forward_packet = false;
-						if(e2IFlow.getState()==0x03){
+						if(e2IFlow.getState()==0x0C){
 							
 							String real_src = IPv4.fromIPv4Address(e2IFlow.getOriginalIP());
 							String real_dst = IPv4.fromIPv4Address(e2IFlow.getDstIP());
@@ -315,17 +315,20 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					if(state==0x00){
 						System.err.println(conn+" first packet, but state is zero, give up!");
 					}
-					else if(state==0x01){
+					else if(state==0x04){
 						conn.setState(state);
 						System.err.println(conn+" first packet, set state "+state+" ");
 						int tmp_ip = id<<16;
 						conn.setOriginalIP(tmp_ip);
 					}
-					else if(state == 0x02){
+					else if(state == 0x08){
 						conn.setState(state);
 						System.err.println(conn+" first packet, set state "+state);
 						int tmp_ip = id&0x0000ffff;
 						conn.setOriginalIP(tmp_ip);
+					}
+					else{
+						System.err.println("new "+conn+" error state "+state);
 					}
 					install_rules = false;
 					forward_packet = false;

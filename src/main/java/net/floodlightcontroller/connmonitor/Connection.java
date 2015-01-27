@@ -210,7 +210,7 @@ public class Connection {
 	public String getConnectionSimplifiedKeyString(){
 		if(type == EXTERNAL_TO_INTERNAL){
 			StringBuilder sb = new StringBuilder();
-			sb.append(srcIP);
+			sb.append(IPv4.fromIPv4Address(srcIP));
 			sb.append(":");
 			sb.append(srcPort);
 			sb.append(":");
@@ -219,7 +219,7 @@ public class Connection {
 		}
 		else if(type == INTERNAL_TO_EXTERNAL){
 			StringBuilder sb = new StringBuilder();
-			sb.append(dstIP);
+			sb.append(IPv4.fromIPv4Address(dstIP));
 			sb.append(":");
 			sb.append(dstPort);
 			sb.append(":");
