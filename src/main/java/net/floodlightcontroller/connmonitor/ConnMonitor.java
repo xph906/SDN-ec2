@@ -276,13 +276,13 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					}
 					else{
 						if(state == 0x04){
-							System.err.println("useful constructor packet ");
+							System.err.println("useful constructor packet 04 ");
 							e2IFlow.setState((byte)(state|conn_state));
-							int tmp_ip = (id&0xffff0000) |e2IFlow.getOriginalIP() ;
+							int tmp_ip = ((id&0x0000ffff)<<16) |e2IFlow.getOriginalIP() ;
 							e2IFlow.setOriginalIP(tmp_ip);
 						}
 						else if(state == 0x08){
-							System.err.println("useful constructor packet ");
+							System.err.println("useful constructor packet 08");
 							e2IFlow.setState((byte)(state|conn_state));
 							int tmp_ip = id&0x0000ffff |e2IFlow.getOriginalIP();
 							e2IFlow.setOriginalIP(tmp_ip);
