@@ -349,7 +349,6 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					if(state==0x00){
 						/*For test*/
 						testFlag = true;
-						
 						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
 						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
 								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
@@ -802,7 +801,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		*/
         
         // Send the packet to the switch
-        try 
+       /* try 
         {
         	System.err.println("sent out requesting setup packet!\n");
             sw.write(pktOut, null);
@@ -813,7 +812,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         {
         	logger.LogError("failed forward packet");
 			return false;
-        }
+        }*/
         
         return true;
 	}
