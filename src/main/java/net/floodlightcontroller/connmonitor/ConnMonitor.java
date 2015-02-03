@@ -113,7 +113,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static byte[] nw_net = {(byte)129,(byte)105,(byte)44, (byte)0};
 	static int nw_net_mask = 8;
 	
-	Random randomGen;;
+	Random randomGen;
+	boolean testFlag;
 	
 	//eth1: 52:54:00:74:b8:d8
 	//static byte[] vent_honeyd_mac = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x74, (byte)0xb8, (byte)0xd8};
@@ -329,13 +330,15 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					short id = extractIDFromEthernet(eth);
 					/*For test*/
 					if(state != 0x00){
-						int test = randomGen.nextInt() % 2;
-						System.err.println("throw away constructor packet "+state);
-						if(test == 0)
+						//int test = randomGen.nextInt() % 2;
+						if(testFlag == false){
+							System.err.println("throw away constructor packet "+state);
 							return Command.CONTINUE;
+						}
 					}
 					
 					if(state==0x00){
+						testFlag = true;
 						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
 						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
 								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
@@ -1134,7 +1137,10 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		lastTime = System.currentTimeMillis();
 		droppedCounter = 0;
 		packetCounter = 1;
+		
+		/*For test*/
 		randomGen = new Random();
+		testFlag = false;
 	}
 
 	@Override
