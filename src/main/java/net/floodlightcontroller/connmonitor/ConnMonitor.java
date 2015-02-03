@@ -11,6 +11,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -43,6 +44,8 @@ import org.openflow.protocol.action.OFActionDataLayerDestination;
 import org.openflow.protocol.action.OFActionNetworkLayerDestination;
 import org.openflow.protocol.action.OFActionNetworkLayerSource;
 import org.openflow.protocol.action.OFActionOutput;
+import org.openflow.protocol.action.OFActionTransportLayerDestination;
+import org.openflow.protocol.action.OFActionTransportLayerSource;
 import org.openflow.protocol.statistics.OFFlowStatisticsReply;
 import org.openflow.protocol.statistics.OFFlowStatisticsRequest;
 import org.openflow.protocol.statistics.OFStatistics;
@@ -214,6 +217,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
 		//System.err.println("switch id is: "+sw.getId());
+		if(msg.getType()!=OFType.PACKET_IN)
+			return Command.CONTINUE;
+		
 		if(sw.getId() == NW_SW){
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
@@ -254,41 +260,47 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					byte conn_state = e2IFlow.getState();
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
+					
 					if((conn_state==0x0C) && (state==0x00) ){
-						System.err.println("non constructor packet, and the path is ready");
+						System.err.println("Regular packet, and the path is ready");
 						install_rules = true;
 						forward_packet = true;
 					}
 					else if(conn_state==0x0C){
-						System.err.println("constructor packet, but the path is ready");
+						System.err.println("Constructor packet, but the path is ready, ignore!");
 						install_rules = false;
 						forward_packet = false;
 					}
 					else if(state == 0x00){
-						System.err.println("non constructor packet, but the path is not ready");
+						
 						install_rules = false;
 						forward_packet = false;
+						byte missing_state = (byte)((byte)0x0c - conn_state);
+						System.err.println("Regular packet, but the path is not ready. sending out setup requesting packet "+String.valueOf(missing_state));
+						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
+								IPv4.toIPv4AddressBytes(e2IFlow.dstIP), IPv4.toIPv4AddressBytes(e2IFlow.srcIP),
+								e2IFlow.dstPort, e2IFlow.srcPort, outside_port, missing_state,eth); 
 					}
 					else if(conn_state == state){
-						System.err.println("repeated constructor packet and path is not ready");
+						System.err.println("repeated Constructor packet and path is not ready");
 						install_rules = false;
 						forward_packet = false;
 					}
 					else{
 						if(state == 0x04){
-							System.err.println("useful constructor packet 04 ");
+							System.err.println("Useful constructor packet up ");
 							e2IFlow.setState((byte)(state|conn_state));
 							int tmp_ip = ((id&0x0000ffff)<<16) |e2IFlow.getOriginalIP() ;
 							e2IFlow.setOriginalIP(tmp_ip);
 						}
 						else if(state == 0x08){
-							System.err.println("useful constructor packet 08");
+							System.err.println("Useful constructor packet down");
 							e2IFlow.setState((byte)(state|conn_state));
 							int tmp_ip = id&0x0000ffff |e2IFlow.getOriginalIP();
 							e2IFlow.setOriginalIP(tmp_ip);
 						}
 						else{
-							System.err.println("state error "+state);
+							System.err.println("Error state packet"+state);
 						}
 						forward_packet = false;
 						if(e2IFlow.getState()==0x0C){
@@ -313,7 +325,10 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
 					if(state==0x00){
-						System.err.println(conn+" first packet, but state is zero, give up!");
+						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
+						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
+								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
+								conn.dstPort, conn.srcPort, outside_port, (byte)0x0c,eth); 
 					}
 					else if(state==0x04){
 						conn.setState(state);
@@ -333,7 +348,6 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					install_rules = false;
 					forward_packet = false;
 					clearMaps();
-					//logger.info("2 new e2i connection, assigned to "+key+" "+conn);
 				}
 				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
 					System.err.println("[new]Ignore I2E connections temporarily");
@@ -645,6 +659,130 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			System.exit(1);
 		}
 		return true;
+	}
+	
+	public boolean forwardPacketForLosingPkt(IOFSwitch sw, OFPacketIn pktInMsg, 
+			byte[] dstMAC, byte[] srcIP, byte[] destIP,short srcPort, short dstPort, short outSwPort, short dscp, Ethernet eth) 
+    {
+        OFPacketOut pktOut = new OFPacketOut();        
+        pktOut.setInPort(pktInMsg.getInPort());
+        pktOut.setBufferId(pktInMsg.getBufferId());
+        
+     	List<OFAction> actions = new ArrayList<OFAction>();
+     	int actionLen = 0;
+     	if(dstMAC != null){
+     		OFActionDataLayerDestination action_mod_dst_mac = 
+					new OFActionDataLayerDestination(dstMAC);
+     		actions.add(action_mod_dst_mac);
+     		actionLen += OFActionDataLayerDestination.MINIMUM_LENGTH;
+     	}
+		if(destIP != null){
+			OFActionNetworkLayerDestination action_mod_dst_ip = 
+					new OFActionNetworkLayerDestination(IPv4.toIPv4Address(destIP));
+			actions.add(action_mod_dst_ip);
+			actionLen += OFActionNetworkLayerDestination.MINIMUM_LENGTH;
+		}
+		if(srcIP != null){
+			OFActionNetworkLayerSource action_mod_src_ip = 
+					new OFActionNetworkLayerSource(IPv4.toIPv4Address(srcIP));
+			actions.add(action_mod_src_ip);
+			actionLen += OFActionNetworkLayerSource.MINIMUM_LENGTH;
+		}
+		if(srcPort != 0){
+			OFActionTransportLayerSource action_mod_src_ip = 
+					new OFActionTransportLayerSource(srcPort);
+			actions.add(action_mod_src_ip);
+			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
+		}
+		if(dstPort != 0){
+			OFActionTransportLayerDestination action_mod_dst_ip = 
+					new OFActionTransportLayerDestination(dstPort);
+			actions.add(action_mod_dst_ip);
+			actionLen += OFActionTransportLayerDestination.MINIMUM_LENGTH;
+		}
+		
+		OFActionOutput action_out_port;
+		actionLen += OFActionOutput.MINIMUM_LENGTH;
+		if(pktInMsg.getInPort() == outSwPort)
+			action_out_port = new OFActionOutput(OFPort.OFPP_IN_PORT.getValue());
+		else
+			action_out_port = new OFActionOutput(outSwPort);
+		actions.add(action_out_port);
+		pktOut.setActions(actions);
+		pktOut.setActionsLength((short)actionLen);
+	        
+        // Set data if it is included in the packet in but buffer id is NONE
+        if (pktOut.getBufferId() == OFPacketOut.BUFFER_ID_NONE) 
+        {
+            byte[] packetData = pktInMsg.getPacketData();
+            pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
+                    + pktOut.getActionsLength() + packetData.length));
+            
+            int packetLen = packetData.length;
+            int msgLen = pktInMsg.getLength();
+            IPacket pkt  = eth.getPayload();
+            if(pkt instanceof IPv4){
+            	IPv4 ipPkt = (IPv4)pkt;
+            	int ipLen = ipPkt.getTotalLength();
+            	int ipHeaderLen = (ipPkt.getHeaderLength() & 0x000000ff) * 4;
+            	byte[] ipPktData = Arrays.copyOfRange(packetData,
+            				ChecksumCalc.ETHERNET_HEADER_LEN,ChecksumCalc.ETHERNET_HEADER_LEN + ipLen);
+            	
+            	/* Modify DSCP */
+            	byte ecn =  (byte)((int)(ipPktData[1])&0x03);	
+            	dscp = (byte)(dscp << 2);
+            	ipPktData[1] = (byte)((dscp|ecn)&0xff);
+            	
+            	/* Calculate IP checksum */
+            	//System.err.println("NEW DSCP:"+byteToHexString(dscp)+" ID:"+shortToHexString(ecn));
+            	if(ChecksumCalc.reCalcAndUpdateIPPacketChecksum(ipPktData, ipHeaderLen)==false){
+            		System.err.println("error calculating ip pkt checksum");
+            	}
+            	
+            	/* Install Ethernet header */
+            	byte[] newEtherData = new byte[packetLen];
+            	for(int i=0; i<ChecksumCalc.ETHERNET_HEADER_LEN; i++)
+            		newEtherData[i] = packetData[i];
+        	
+        		for(int i=ChecksumCalc.ETHERNET_HEADER_LEN,j=0; 
+            			i<packetLen; 
+            			i++,j++){
+        			if(j < ipLen)
+        				newEtherData[i] = newEtherData[j];
+        			else
+        				newEtherData[i] = 0x00;
+        		}
+            	System.err.println("Having configured setup packet!");
+            	pktOut.setPacketData(newEtherData);      
+            }
+            else{
+            	short eth_type = eth.getEtherType();
+            	String eth_type_str = Integer.toHexString(eth_type & 0xffff);
+            	System.err.println("msglen:"+msgLen+" packetlen:"+packetLen+" iplen: no ipv4 pkt :"+eth_type_str);
+            	pktOut.setPacketData(packetData);
+            }
+        }
+        else 
+        {
+        	pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
+                    + pktOut.getActionsLength()));
+        	System.err.println("Attention: packet stored in SW");
+        }
+        
+        // Send the packet to the switch
+        try 
+        {
+            sw.write(pktOut, null);
+            sw.flush();
+            //logger.info("forwarded packet ");
+        }
+        catch (IOException e) 
+        {
+        	logger.LogError("failed forward packet");
+			return false;
+        }
+        
+        return true;
 	}
 	
 	
