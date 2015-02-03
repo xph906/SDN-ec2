@@ -338,18 +338,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					connMap.put(key, conn);
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
-					/*For test*/
-					if(state != 0x00){
-						//int test = randomGen.nextInt() % 2;
-						if(testFlag == false){
-							System.err.println("throw away constructor packet "+state);
-							return Command.CONTINUE;
-						}
-					}
 					
 					if(state==0x00){
-						/*For test*/
-						testFlag = true;
 						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
 						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
 								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
@@ -802,7 +792,6 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
                     + pktOut.getActionsLength()));
         	System.err.println("Attention: packet stored in SW");
         }
-        
         
 		/*For test
 		byte[] packetData = pktInMsg.getPacketData();
