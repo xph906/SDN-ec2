@@ -217,6 +217,14 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         }
 	}
 	
+	static public String bytesToHexString(byte[] contents){
+		StringBuilder hexcontents = new StringBuilder();
+		for (byte b:contents) {
+			hexcontents.append(String.format("%02X ", b));
+		}
+		return hexcontents.toString();
+	}
+	
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
@@ -767,7 +775,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         			else
         				newEtherData[i] = 0x00;
         		}
-            	System.err.println("Having configured setup packet "+newEtherData[15]);
+            	System.err.println("Having configured setup packet "+newEtherData[15]+":"+bytesToHexString(ipPktData));
+            	
             	pktOut.setPacketData(newEtherData);      
             }
             else{
