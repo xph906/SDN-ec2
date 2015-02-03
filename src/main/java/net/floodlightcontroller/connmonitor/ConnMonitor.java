@@ -785,6 +785,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         
 		/*For test*/
 		byte[] packetData = pktInMsg.getPacketData();
+		pktOut.setPacketData(packetData);
         pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
                 + pktOut.getActionsLength() + packetData.length));
 		
