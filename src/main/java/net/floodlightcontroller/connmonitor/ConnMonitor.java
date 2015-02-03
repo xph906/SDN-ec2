@@ -766,13 +766,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
             	byte[] ipPktData = Arrays.copyOfRange(packetData,
             				ChecksumCalc.ETHERNET_HEADER_LEN,ChecksumCalc.ETHERNET_HEADER_LEN + ipLen);
             	
-            	byte ecn =  (byte)((int)(ipPktData[1])&0x03);	
-            	dscp = (byte)(dscp << 2);
-            	ipPktData[1] = (byte)((dscp|ecn)&0xff);
-            	/* test */
-            	ipPktData[1] = (byte)0xff;
-            	ipPktData[4] = (byte)0xff;
-            	ipPktData[5] = (byte)0xff;
+            	/*FIXME it turns out dscp will be striped from NW to SRI, we use ecn instead */
+            	byte ecn = (byte)(dscp >>> 2);
+            	ipPktData[1] = ecn;
             	
             	if(ChecksumCalc.reCalcAndUpdateIPPacketChecksum(ipPktData, ipHeaderLen)==false){
             		System.err.println("error calculating ip pkt checksum");
