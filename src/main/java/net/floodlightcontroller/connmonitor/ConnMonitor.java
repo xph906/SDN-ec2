@@ -677,7 +677,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	}
 	
 	public boolean forwardPacketForLosingPkt(IOFSwitch sw, OFPacketIn pktInMsg, 
-			byte[] dstMAC, byte[] srcIP, byte[] destIP,short srcPort, short dstPort, short outSwPort, short dscp, Ethernet eth) 
+			byte[] dstMAC, byte[] srcIP, byte[] dstIP,short srcPort, short dstPort, short outSwPort, short dscp, Ethernet eth) 
     {
         OFPacketOut pktOut = new OFPacketOut();        
         pktOut.setInPort(pktInMsg.getInPort());
@@ -691,9 +691,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
      		actions.add(action_mod_dst_mac);
      		actionLen += OFActionDataLayerDestination.MINIMUM_LENGTH;
      	}
-		if(destIP != null){
+		if(dstIP != null){
 			OFActionNetworkLayerDestination action_mod_dst_ip = 
-					new OFActionNetworkLayerDestination(IPv4.toIPv4Address(destIP));
+					new OFActionNetworkLayerDestination(IPv4.toIPv4Address(dstIP));
 			actions.add(action_mod_dst_ip);
 			actionLen += OFActionNetworkLayerDestination.MINIMUM_LENGTH;
 		}
@@ -715,6 +715,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			actions.add(action_mod_dst_port);
 			actionLen += OFActionTransportLayerDestination.MINIMUM_LENGTH;
 		}
+		System.err.println("from:"+IPv4.fromIPv4Address(IPv4.toIPv4Address(srcIP))+":"+srcPort+" to: "+
+							IPv4.fromIPv4Address(IPv4.toIPv4Address(dstIP))+":"+dstPort );
 		
 		OFActionOutput action_out_port;
 		actionLen += OFActionOutput.MINIMUM_LENGTH;
@@ -727,7 +729,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		pktOut.setActionsLength((short)actionLen);
 	        
         // Set data if it is included in the packet in but buffer id is NONE
-        if (pktOut.getBufferId() == OFPacketOut.BUFFER_ID_NONE) 
+     /*   if (pktOut.getBufferId() == OFPacketOut.BUFFER_ID_NONE) 
         {
             byte[] packetData = pktInMsg.getPacketData();
             pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
@@ -743,18 +745,14 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
             	byte[] ipPktData = Arrays.copyOfRange(packetData,
             				ChecksumCalc.ETHERNET_HEADER_LEN,ChecksumCalc.ETHERNET_HEADER_LEN + ipLen);
             	
-            	/* Modify DSCP */
             	byte ecn =  (byte)((int)(ipPktData[1])&0x03);	
             	dscp = (byte)(dscp << 2);
             	ipPktData[1] = (byte)((dscp|ecn)&0xff);
             	
-            	/* Calculate IP checksum */
-            	//System.err.println("NEW DSCP:"+byteToHexString(dscp)+" ID:"+shortToHexString(ecn));
             	if(ChecksumCalc.reCalcAndUpdateIPPacketChecksum(ipPktData, ipHeaderLen)==false){
             		System.err.println("error calculating ip pkt checksum");
             	}
-            	
-            	/* Install Ethernet header */
+
             	byte[] newEtherData = new byte[packetLen];
             	for(int i=0; i<ChecksumCalc.ETHERNET_HEADER_LEN; i++)
             		newEtherData[i] = packetData[i];
@@ -783,7 +781,13 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
                     + pktOut.getActionsLength()));
         	System.err.println("Attention: packet stored in SW");
         }
+        */
         
+		/*For test*/
+		byte[] packetData = pktInMsg.getPacketData();
+        pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
+                + pktOut.getActionsLength() + packetData.length));
+		
         // Send the packet to the switch
         try 
         {
