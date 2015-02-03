@@ -339,7 +339,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					}
 					
 					if(state==0x00){
+						/*For test*/
 						testFlag = true;
+						
 						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
 						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
 								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
@@ -765,7 +767,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         			else
         				newEtherData[i] = 0x00;
         		}
-            	System.err.println("Having configured setup packet!");
+            	System.err.println("Having configured setup packet "+newEtherData[15]);
             	pktOut.setPacketData(newEtherData);      
             }
             else{
