@@ -729,7 +729,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		pktOut.setActionsLength((short)actionLen);
 	        
         // Set data if it is included in the packet in but buffer id is NONE
-     /*   if (pktOut.getBufferId() == OFPacketOut.BUFFER_ID_NONE) 
+        if (pktOut.getBufferId() == OFPacketOut.BUFFER_ID_NONE) 
         {
             byte[] packetData = pktInMsg.getPacketData();
             pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
@@ -761,7 +761,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
             			i<packetLen; 
             			i++,j++){
         			if(j < ipLen)
-        				newEtherData[i] = newEtherData[j];
+        				newEtherData[i] = ipPktData[j];
         			else
         				newEtherData[i] = 0x00;
         		}
@@ -781,14 +781,15 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
                     + pktOut.getActionsLength()));
         	System.err.println("Attention: packet stored in SW");
         }
-        */
         
-		/*For test*/
+        
+		/*For test
 		byte[] packetData = pktInMsg.getPacketData();
 		pktOut.setPacketData(packetData);
         pktOut.setLength((short)(OFPacketOut.MINIMUM_LENGTH
                 + pktOut.getActionsLength() + packetData.length));
-		
+		*/
+        
         // Send the packet to the switch
         try 
         {
