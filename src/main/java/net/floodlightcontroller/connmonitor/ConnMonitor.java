@@ -37,6 +37,7 @@ import org.openflow.protocol.OFMessage;
 import org.openflow.protocol.OFPacketIn;
 import org.openflow.protocol.OFPacketOut;
 import org.openflow.protocol.OFPort;
+import org.openflow.protocol.OFSetConfig;
 import org.openflow.protocol.OFStatisticsRequest;
 import org.openflow.protocol.OFType;
 import org.openflow.protocol.Wildcards;
@@ -529,9 +530,20 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 	
 	private boolean initNWSwitch(long switchId){
-		
-		//e2i to controller
 		IOFSwitch sw = floodlightProvider.getSwitch(switchId);
+		
+		OFSetConfig config = new OFSetConfig();
+		config.setMissSendLength((short)0xffff);
+		try{
+			sw.write(config, null);
+			sw.flush();
+			System.out.println("Done writing config to sw");
+		}
+		catch(Exception e){
+			System.err.println("Write config to sw: "+e);
+		}
+		
+		//e2i to controller	
 		OFMatch match = new OFMatch();	
 		match.setDataLayerType((short)0x0800);
 		match.setNetworkDestination(IPv4.toIPv4Address(nw_ip));
@@ -775,7 +787,6 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         				newEtherData[i] = 0x00;
         		}
             	System.err.println("Having configured setup packet "+newEtherData[15]+":"+bytesToHexString(ipPktData));
-            	
             	pktOut.setPacketData(newEtherData);      
             }
             else{
@@ -801,7 +812,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		*/
         
         // Send the packet to the switch
-       /* try 
+        try 
         {
         	System.err.println("sent out requesting setup packet!\n");
             sw.write(pktOut, null);
@@ -812,7 +823,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         {
         	logger.LogError("failed forward packet");
 			return false;
-        }*/
+        }
         
         return true;
 	}
