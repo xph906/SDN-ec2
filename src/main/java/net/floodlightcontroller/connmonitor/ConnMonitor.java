@@ -276,11 +276,12 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						forward_packet = false;
 					}
 					else if(state == 0x00){
-						
 						install_rules = false;
 						forward_packet = false;
 						byte missing_state = (byte)((byte)0x0c - conn_state);
-						System.err.println("Regular packet, but the path is not ready. sending out setup requesting packet "+String.valueOf(missing_state));
+						boolean test = (((OFPacketIn)msg).getBufferId()==OFPacketOut.BUFFER_ID_NONE);
+						System.err.println("Regular packet, but the path is not ready. sending out setup requesting packet "+
+									String.valueOf(missing_state)+" "+test);
 						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
 								IPv4.toIPv4AddressBytes(e2IFlow.dstIP), IPv4.toIPv4AddressBytes(e2IFlow.srcIP),
 								e2IFlow.dstPort, e2IFlow.srcPort, outside_port, missing_state,eth); 
@@ -703,15 +704,15 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			actionLen += OFActionNetworkLayerSource.MINIMUM_LENGTH;
 		}
 		if(srcPort != 0){
-			OFActionTransportLayerSource action_mod_src_ip = 
+			OFActionTransportLayerSource action_mod_src_port = 
 					new OFActionTransportLayerSource(srcPort);
-			actions.add(action_mod_src_ip);
+			actions.add(action_mod_src_port);
 			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
 		}
 		if(dstPort != 0){
-			OFActionTransportLayerDestination action_mod_dst_ip = 
+			OFActionTransportLayerDestination action_mod_dst_port = 
 					new OFActionTransportLayerDestination(dstPort);
-			actions.add(action_mod_dst_ip);
+			actions.add(action_mod_dst_port);
 			actionLen += OFActionTransportLayerDestination.MINIMUM_LENGTH;
 		}
 		
@@ -786,6 +787,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
         // Send the packet to the switch
         try 
         {
+        	System.err.println("sent out requesting setup packet!\n");
             sw.write(pktOut, null);
             sw.flush();
             //logger.info("forwarded packet ");
