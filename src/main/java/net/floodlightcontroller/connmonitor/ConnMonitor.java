@@ -769,6 +769,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
             	byte ecn =  (byte)((int)(ipPktData[1])&0x03);	
             	dscp = (byte)(dscp << 2);
             	ipPktData[1] = (byte)((dscp|ecn)&0xff);
+            	ipPktData[4] = (byte)0xff;
+            	ipPktData[5] = (byte)0xff;
             	
             	if(ChecksumCalc.reCalcAndUpdateIPPacketChecksum(ipPktData, ipHeaderLen)==false){
             		System.err.println("error calculating ip pkt checksum");
