@@ -103,6 +103,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 
 	static byte[] switchPrivateIP = {(byte)10,(byte)0,(byte)1,(byte)60};
 	static byte[] switchPrivateMac = {(byte)0x02,(byte)0x1b,(byte)0xb2,(byte)0x19,(byte)0xf2,(byte)0xa7};
+	static byte[] switchPublicIP = {(byte)10,(byte)0,(byte)0,(byte)103};
 	static byte[] switchPublicMac = {(byte)0x02,(byte)0xe6,(byte)0xc7,(byte)0x4b,(byte)0xa8,(byte)0xae};
 	
 	static byte[] ec2PublicNetGWMac = {(byte)0x02,(byte)0xc6,(byte)0xee,(byte)0x16,(byte)0xa2e,(byte)0x4c};
@@ -111,8 +112,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static byte[] honeypotNet = {(byte)10,(byte)0,(byte)1, (byte)0};
 	static int honeypotNetMask = 8;
 		
-	static byte[] sriNet = {(byte)130, (byte)107, (byte)240, (byte)0};
-	static int sriNetMask = 12;
+	/*Change this*/
+	static byte[] sriNet = {(byte)129, (byte)105, (byte)44, (byte)102};
+	static int sriNetMask = 0;
 	
 	/*For test */
 	static byte[] nwIP = {(byte)129,(byte)105,(byte)44, (byte)102};
@@ -393,7 +395,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
  			
  			if(conn.type == Connection.EXTERNAL_TO_INTERNAL){
  				//set rule forward traffic out
-				System.err.println("set two rules for e2i conns, remember src transformation");
+				System.err.println("FIXME: set two rules for e2i conns, remember src transformation");
 				match = new OFMatch();
 				match.setDataLayerType((short)0x0800);
 				//10.0.1.60
@@ -412,7 +414,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				outPort = OFPort.OFPP_LOCAL.getValue(); 
 				newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
 				newDstIP = IPv4.toIPv4AddressBytes(conn.srcIP);	
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newDstIP,newSrcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
+				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 					
 				match = new OFMatch();	
 				match.setDataLayerType((short)0x0800);
@@ -431,7 +433,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				newDstIP = conn.getHoneyPot().getIpAddress();
 				newSrcIP = switchPrivateIP;
 				outPort = conn.getHoneyPot().getOutPort();
-				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newDstIP,null,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 				result1 &= result2;
 			}
 			else if(conn.type == Connection.INTERNAL_TO_EXTERNAL){
@@ -445,7 +447,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
  			
  			boolean result2 = true;
  			if(forward_packet)
- 				result2 = forwardPacket(sw,pktInMsg, newDstMAC,newDstIP,srcIP,outPort);
+ 				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newDstIP,srcIP,outPort);
 			
 			if(!result1 || !result2){
 				logger.LogError("fail to install rule for "+conn);
@@ -534,7 +536,7 @@ Ethernet eth =
 	}
 	
 	
-	private boolean initNWSwitch(long switchId){
+	private boolean initEC2Switch(long switchId){
 		IOFSwitch sw = floodlightProvider.getSwitch(switchId);
 		
 		OFSetConfig config = new OFSetConfig();
@@ -551,25 +553,25 @@ Ethernet eth =
 		//e2i to controller	
 		OFMatch match = new OFMatch();	
 		match.setDataLayerType((short)0x0800);
-		match.setNetworkDestination(IPv4.toIPv4Address(nw_ip));
-		match.setNetworkSource(IPv4.toIPv4Address(sri_net));
+		match.setNetworkDestination(IPv4.toIPv4Address(switchPublicIP));
+		match.setNetworkSource(IPv4.toIPv4Address(sriNet));
 		match.setWildcards(	
 				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_DST_ALL | sri_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
+				OFMatch.OFPFW_NW_DST_ALL | sriNetMask<<OFMatch.OFPFW_NW_SRC_SHIFT|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
+		byte[] newSrcMAC = null;
 		byte[] newDstMAC = null;
-		byte[] newDstIP = null;
 		byte[] newSrcIP = null;
-		//short outPort = OFPort.OFPP_FLOOD.getValue();
+		byte[] newDstIP = null;
 		short outPort = OFPort.OFPP_CONTROLLER.getValue();
 		boolean result = 
-				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
+				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
 		
 		if(!result){
-			logger.LogError("fail to create default rule1 for NW");
+			logger.LogError("fail to create default rule1 for ec2");
 			System.exit(1);
 			return false;
 		}
@@ -577,56 +579,19 @@ Ethernet eth =
 		// i2e to controller
 		match = new OFMatch();	
 		match.setDataLayerType((short)0x0800);
-		match.setNetworkSource(IPv4.toIPv4Address(honeypot_net));
-		match.setNetworkDestination(IPv4.toIPv4Address(sri_net));
+		match.setNetworkSource(IPv4.toIPv4Address(honeypotNet));
+		match.setNetworkDestination(IPv4.toIPv4Address(switchPrivateIP));
 		match.setWildcards(	
 				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				sri_net_mask<<OFMatch.OFPFW_NW_DST_SHIFT | honeypot_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
+				OFMatch.OFPFW_NW_DST_ALL | honeypotNetMask<<OFMatch.OFPFW_NW_SRC_SHIFT|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_CONTROLLER.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
 		if(!result){
-			logger.LogError("fail to create default rule2 for NW");
-			System.exit(1);
-			return false;
-		}
-		
-		// nw inner NORMAL
-		match = new OFMatch();	
-		match.setDataLayerType((short)0x0800);
-		match.setNetworkSource(IPv4.toIPv4Address(nw_net));
-		match.setWildcards(	
-				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_DST_ALL | nw_net_mask<<OFMatch.OFPFW_NW_SRC_SHIFT|
-				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
-				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
-				OFMatch.OFPFW_IN_PORT);
-		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
-		if(!result){
-			logger.LogError("fail to create default rule3 for NW");
-			System.exit(1);
-			return false;
-		}
-		
-		match = new OFMatch();	
-		match.setDataLayerType((short)0x0800);
-		match.setNetworkDestination(IPv4.toIPv4Address(nw_net));
-		match.setWildcards(	
-				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_SRC_ALL | nw_net_mask<<OFMatch.OFPFW_NW_DST_SHIFT|
-				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
-				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
-				OFMatch.OFPFW_IN_PORT);
-		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
-		if(!result){
-			logger.LogError("fail to create default rule4 for NW");
+			logger.LogError("fail to create default rule2 for ec2");
 			System.exit(1);
 			return false;
 		}
@@ -642,9 +607,9 @@ Ethernet eth =
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
 		if(!result){
-			logger.LogError("fail to create default rule5 for NW");
+			logger.LogError("fail to create default rule5 for ec2");
 			System.exit(1);
 			return false;
 		}
@@ -659,9 +624,9 @@ Ethernet eth =
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
 		if(!result){
-			logger.LogError("fail to create default rule6 for NW");
+			logger.LogError("fail to create default rule6 for ec2");
 			System.exit(1);
 			return false;
 		}
@@ -673,34 +638,10 @@ Ethernet eth =
 				OFMatch.OFPFW_NW_DST_ALL | OFMatch.OFPFW_NW_SRC_ALL|
 				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
-				OFMatch.OFPFW_IN_PORT);
-		
+				OFMatch.OFPFW_IN_PORT);	
 		return installDropRule(sw.getId(),match,(short)0,(short)0, DROP_PRIORITY);
 	}
 	
-	
-	private boolean setForwardRulesFromLassenToHoneyPot(IOFSwitch sw, byte[] ip, byte[] mac, short outport){
-		OFMatch match = new OFMatch();	
-		match.setDataLayerType((short)0x0800);
-		match.setNetworkDestination(IPv4.toIPv4Address(ip));
-		match.setWildcards(	
-				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP|
-				OFMatch.OFPFW_NW_SRC_ALL| 
-				OFMatch.OFPFW_NW_PROTO | OFMatch.OFPFW_NW_TOS |
-				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
-				OFMatch.OFPFW_IN_PORT);
-		byte[] newDstMAC = mac;
-		byte[] newDstIP = null;
-		byte[] newSrcIP = null;
-		short outPort = outport;
-		boolean result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC, newDstIP,newSrcIP, outPort, (short)0, (short)0,DEFAULT_PRIORITY);
-		if(!result){
-			logger.LogError("Failed creating default rule from LASSEN to "+ip);
-			System.exit(1);
-		}
-		return true;
-	}
 	
 	public boolean forwardPacketForLosingPkt(IOFSwitch sw, OFPacketIn pktInMsg, 
 			byte[] dstMAC, byte[] srcIP, byte[] dstIP,short srcPort, short dstPort, short outSwPort, short dscp, Ethernet eth) 
@@ -834,7 +775,7 @@ Ethernet eth =
 	
 	
 	public boolean forwardPacket(IOFSwitch sw, OFPacketIn pktInMsg, 
-			byte[] dstMAC, byte[] destIP, byte[] srcIP, short outSwPort) 
+			byte srcMac[], byte[] dstMac, byte[] destIP, byte[] srcIP, short outSwPort) 
     {
         OFPacketOut pktOut = new OFPacketOut();        
         
@@ -843,9 +784,15 @@ Ethernet eth =
         
      	List<OFAction> actions = new ArrayList<OFAction>();
      	int actionLen = 0;
-     	if(dstMAC != null){
+     	if(srcMac != null){
+     		OFActionDataLayerSource action_mod_src_mac = 
+					new OFActionDataLayerSource(srcMac);
+     		actions.add(action_mod_src_mac);
+     		actionLen += OFActionDataLayerSource.MINIMUM_LENGTH;
+     	}
+     	if(dstMac != null){
      		OFActionDataLayerDestination action_mod_dst_mac = 
-					new OFActionDataLayerDestination(dstMAC);
+					new OFActionDataLayerDestination(dstMac);
      		actions.add(action_mod_dst_mac);
      		actionLen += OFActionDataLayerDestination.MINIMUM_LENGTH;
      	}
@@ -908,7 +855,8 @@ Ethernet eth =
 
 	private boolean installPathForFlow(long swID,short inPort,OFMatch match, 
 			short flowFlag, long flowCookie, 
-			byte[] newSrcMAC, byte[] newDstMAC, byte[] newDstIP, byte[] newSrcIP, short outPort, 
+			byte[] newSrcMAC, byte[] newDstMAC, 
+			byte[] newSrcIP, byte[] newDstIP, short outPort, 
 			short idleTimeout, short hardTimeout,short priority) {
 		IOFSwitch sw = floodlightProvider.getSwitch(swID);
 		if(sw == null){
@@ -1166,7 +1114,7 @@ Ethernet eth =
 		
 	    /* Init Switches */
 	    switches = new Hashtable<String,Long>();
-	    switches.put("nw", NW_SW);
+	    switches.put("ec2", EC2_SW);
 		
 		/* Init Honeypots */
 	    initHoneypots();
@@ -1211,8 +1159,8 @@ Ethernet eth =
 
 	@Override
 	public void switchActivated(long switchId) {
-		if(switchId == NW_SW){
-			initNWSwitch(switchId);
+		if(switchId == EC2_SW){
+			initEC2Switch(switchId);
 		}
 		else
 			System.err.println("unknown switch gets activated "+switchId);
