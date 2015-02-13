@@ -43,6 +43,7 @@ import org.openflow.protocol.OFType;
 import org.openflow.protocol.Wildcards;
 import org.openflow.protocol.action.OFAction;
 import org.openflow.protocol.action.OFActionDataLayerDestination;
+import org.openflow.protocol.action.OFActionDataLayerSource;
 import org.openflow.protocol.action.OFActionNetworkLayerDestination;
 import org.openflow.protocol.action.OFActionNetworkLayerSource;
 import org.openflow.protocol.action.OFActionOutput;
@@ -92,41 +93,33 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static short DROP_PRIORITY = 1;
 	//static short HIGH_DROP_PRIORITY = 100;
 	//static short HIGH_DROP_TIMEOUT = 300;
-	static long NW_SW = 130650748906319L;
+	//static long NW_SW = 130650748906319L;
+	static long EC2_SW = 266281717810249L;
 	
 	static int CONN_MAX_SIZE = 100000;
 	static String hih_manager_url = "http://localhost:55551/inform";
 	static String honeypotConfigFileName = "honeypots.config";
 	static String PortsConfigFileName = "ports.config";
 
-	static short outside_port = 2; //eth0
+	static byte[] switchPrivateIP = {(byte)10,(byte)0,(byte)1,(byte)60};
+	static byte[] switchPrivateMac = {(byte)0x02,(byte)0x1b,(byte)0xb2,(byte)0x19,(byte)0xf2,(byte)0xa7};
+	static byte[] switchPublicMac = {(byte)0x02,(byte)0xe6,(byte)0xc7,(byte)0x4b,(byte)0xa8,(byte)0xae};
 	
-	static byte[] honeypot_net = {(byte)192,(byte)168,(byte)1, (byte)0};
-	static int honeypot_net_mask = 8;
-	static byte[] sri_net = {(byte)130, (byte)107, (byte)240, (byte)0};
-	static int sri_net_mask = 12;
+	static byte[] ec2PublicNetGWMac = {(byte)0x02,(byte)0xc6,(byte)0xee,(byte)0x16,(byte)0xa2e,(byte)0x4c};
+	static byte[] ec2PrivateNetGWMac = {(byte)0x02,(byte)0xa7,(byte)0x5a,(byte)0xf4,(byte)0x8c,(byte)0xe5};
 	
-	//00:00:0c:07:ac:66
-	static byte[] nw_gw_mac_address = {(byte)0x00,(byte) 0x00,(byte)0x0c,(byte)0x07,(byte) 0xac,(byte) 0x66};
-	static byte[] nw_gw_ip = {(byte)129,(byte)105,(byte)44, (byte)193};
+	static byte[] honeypotNet = {(byte)10,(byte)0,(byte)1, (byte)0};
+	static int honeypotNetMask = 8;
+		
+	static byte[] sriNet = {(byte)130, (byte)107, (byte)240, (byte)0};
+	static int sriNetMask = 12;
 	
-	static byte[] nw_ip = {(byte)129,(byte)105,(byte)44, (byte)107};
-	static byte[] nw_net = {(byte)129,(byte)105,(byte)44, (byte)0};
-	static int nw_net_mask = 8;
+	/*For test */
+	static byte[] nwIP = {(byte)129,(byte)105,(byte)44, (byte)102};
 	
 	Random randomGen;
 	boolean testFlag;
-	
-	//eth1: 52:54:00:74:b8:d8
-	//static byte[] vent_honeyd_mac = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x74, (byte)0xb8, (byte)0xd8};
-	//static short vnet_honeyd_port = 3;
-	//static byte[] vnet_honeyd_ip = {(byte)192,(byte)168,(byte)1, (byte)11};
 
-	//52:54:00:6a:2f:7b
-	//static byte[] honeyd_mac = {(byte)0x52, (byte)0x54, (byte)0x00, (byte)0x6a, (byte)0x2f, (byte)0x7b};
-	//static byte[] honeyd_ip = {(byte)192,(byte)168,(byte)1, (byte)10};
-	//static byte[] honeyd_virtual_ip = {(byte)192,(byte)168,(byte)1, (byte)12};
-	
 	/*
 	 * These five tables' sizes are fixed.
 	 * no worry about memory leak...
@@ -233,7 +226,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		if(msg.getType()!=OFType.PACKET_IN)
 			return Command.CONTINUE;
 		
-		if(sw.getId() == NW_SW){
+		if(sw.getId() == EC2_SW){
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
 	                                            IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
@@ -270,10 +263,13 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				srcIP = IPv4.toIPv4AddressBytes(e2IFlow.getSrcIP());
 				System.err.println("Contains Key:" + conn.getConnectionSimplifiedKeyString());
 				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
+					System.err.println("FIXME. currently replace exiting item");
+					forward_packet = true;
+					install_rules = true;		
+					/*
 					byte conn_state = e2IFlow.getState();
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
-					
 					if((conn_state==0x0C) && (state==0x00) ){
 						System.err.println("Regular packet, and the path is ready");
 						install_rules = true;
@@ -324,17 +320,21 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 							System.err.println("path is ready:"+real_src+":"+e2IFlow.srcPort+"=>"+real_dst+":"+real_dst);
 							install_rules = true;
 						}
-						
 					}
+					*/
 				}
 				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
 					System.err.println("[old]Ignore I2E connections temporarily");
 				}
 			}/* has found such connection */
 			else{ /* no such connection */
-				System.err.println("New connection: src:" + IPv4.fromIPv4Address(conn.srcIP)+ 
+				System.err.println("New connection: src:" + IPv4.fromIPv4Address(conn.srcIP)+ ":"+
 						" dst:"+IPv4.fromIPv4Address(conn.dstIP));
-				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
+				install_rules = true;
+				forward_packet = true;
+				System.err.println("FIXME: Src port mapping");
+				/*
+				 if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
 					connMap.put(key, conn);
 					byte state = extractStateFromEthernet(eth);
 					short id = extractIDFromEthernet(eth);
@@ -363,6 +363,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					install_rules = false;
 					forward_packet = false;
 					clearMaps();
+				
 				}
 				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
 					System.err.println("[new]Ignore I2E connections temporarily");
@@ -374,6 +375,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					System.err.println("5:"+conn);
 					return Command.CONTINUE;
 				}
+				*/
 			}/*No such connections*/
 			
 			/*Not installing rules implies not installing forwarding packet*/
@@ -383,18 +385,21 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			OFPacketIn pktInMsg = (OFPacketIn)msg;
 			OFMatch match = null;
 			byte[] newDstMAC = null;
+			byte[] newSrcMAC = null;
 			byte[] newDstIP = null;
+			byte[] newSrcIP = null;
  			short outPort = 0;
  			boolean result1 = true;
  			
  			if(conn.type == Connection.EXTERNAL_TO_INTERNAL){
  				//set rule forward traffic out
-				System.err.println("set two rules for e2i conns");
+				System.err.println("set two rules for e2i conns, remember src transformation");
 				match = new OFMatch();
 				match.setDataLayerType((short)0x0800);
-				match.setNetworkDestination(conn.srcIP);
+				//10.0.1.60
+				match.setNetworkDestination(IPv4.toIPv4Address(switchPrivateIP));
+				//10.0.1.61
 				match.setNetworkSource(conn.getHoneyPot().getIpAddrInt());
-				//match.setInputPort(pktInMsg.getInPort());
 				match.setTransportSource(conn.dstPort);
 				match.setTransportDestination(conn.srcPort);
 				match.setNetworkProtocol(conn.getProtocol());
@@ -402,10 +407,12 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 					OFMatch.OFPFW_NW_TOS |   
 					OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
-				newDstMAC = nw_gw_mac_address;
-				outPort = outside_port;
-				byte[] newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,newSrcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
+				newSrcMAC = switchPublicMac; //seems it doesn't matter
+				newDstMAC = ec2PublicNetGWMac;
+				outPort = OFPort.OFPP_LOCAL.getValue(); 
+				newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
+				newDstIP = IPv4.toIPv4AddressBytes(conn.srcIP);	
+				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newDstIP,newSrcIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 					
 				match = new OFMatch();	
 				match.setDataLayerType((short)0x0800);
@@ -419,10 +426,12 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
 						 OFMatch.OFPFW_NW_TOS |   
 						OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP);
-				newDstMAC = conn.getHoneyPot().getMacAddress();
+				newDstMAC = ec2PrivateNetGWMac;
+				newSrcMAC = switchPrivateMac;
 				newDstIP = conn.getHoneyPot().getIpAddress();
+				newSrcIP = switchPrivateIP;
 				outPort = conn.getHoneyPot().getOutPort();
-				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newDstMAC,newDstIP,null,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newDstIP,null,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 				result1 &= result2;
 			}
 			else if(conn.type == Connection.INTERNAL_TO_EXTERNAL){
@@ -899,7 +908,7 @@ Ethernet eth =
 
 	private boolean installPathForFlow(long swID,short inPort,OFMatch match, 
 			short flowFlag, long flowCookie, 
-			byte[] newDstMAC, byte[] newDstIP, byte[] newSrcIP, short outPort, 
+			byte[] newSrcMAC, byte[] newDstMAC, byte[] newDstIP, byte[] newSrcIP, short outPort, 
 			short idleTimeout, short hardTimeout,short priority) {
 		IOFSwitch sw = floodlightProvider.getSwitch(swID);
 		if(sw == null){
@@ -922,6 +931,14 @@ Ethernet eth =
 
 		List<OFAction> actions = new ArrayList<OFAction>();
 		int actionLen = 0;
+		if (newSrcMAC != null) {
+			OFActionDataLayerSource action_mod_src_mac = new OFActionDataLayerSource(
+					newSrcMAC);
+			actions.add(action_mod_src_mac);
+			actionLen += OFActionDataLayerSource.MINIMUM_LENGTH;
+		}
+		
+		
 		if (newDstMAC != null) {
 			OFActionDataLayerDestination action_mod_dst_mac = new OFActionDataLayerDestination(
 					newDstMAC);

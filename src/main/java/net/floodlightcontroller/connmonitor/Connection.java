@@ -182,8 +182,8 @@ public class Connection {
 		return rs;
 	}
 	
-	//A:portA => M:portM  ===>   M:portA => NW:portM
-	//B:portA => M:portM  ===>   M:portA => NW:portM
+	//A:portA => M:portM  ===>   M:portA => EC2:portM
+	//B:portA => M:portM  ===>   M:portA => EC2:portM
 	//Key: M:portA:portM
 	public long getConnectionSimplifiedKey(){
 		long rs = 0;
