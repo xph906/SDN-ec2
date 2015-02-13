@@ -113,8 +113,8 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	static int honeypotNetMask = 8;
 		
 	/*Change this*/
-	static byte[] sriNet = {(byte)129, (byte)105, (byte)44, (byte)102};
-	static int sriNetMask = 0;
+	static byte[] sriNet = {(byte)130, (byte)107, (byte)224, (byte)0};
+	static int sriNetMask = 12;
 	
 	/*For test */
 	static byte[] nwIP = {(byte)129,(byte)105,(byte)44, (byte)102};

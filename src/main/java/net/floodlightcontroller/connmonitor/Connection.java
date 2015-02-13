@@ -33,7 +33,7 @@ public class Connection {
 	static short INTERNAL_TO_EXTERNAL = 2;
 	static short INVALID = 0;
 	static int[] INTERNAL_MASK = {10,0,0};
-	static int[] EXTERNAL_MASK = {129, 105};
+	static int[] EXTERNAL_MASK = {130, 107};
 	
 	static String createConnKeyString(int srcIP, short srcPort, int dstIP, short dstPort){
 		String dstIP_str = IPv4.fromIPv4Address(dstIP);
