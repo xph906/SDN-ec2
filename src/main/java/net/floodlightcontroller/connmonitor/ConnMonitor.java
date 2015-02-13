@@ -461,7 +461,13 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
 		if (msg.getType() == OFType.PACKET_IN) 
 		{ 
-			return PacketInMsgHandler(sw,msg,cntx);
+			System.err.println("packet in msg");
+Ethernet eth =
+                        IFloodlightProviderService.bcStore.get(cntx,
+                                                    IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+                        Connection conn = new Connection(eth);
+			System.err.println(conn);
+			return Command.CONTINUE;    
 		}	
 		return Command.CONTINUE;    
 	}
