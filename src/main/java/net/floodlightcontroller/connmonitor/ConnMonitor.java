@@ -141,6 +141,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	protected Hashtable<Long,Connection> connMap;
 	protected Hashtable<String, Connection> connToPot;
 	protected Hashtable<String, HashSet<Integer> > HIHClientMap;
+	protected HashSet<String> portPairSet;
 
 	protected IFloodlightProviderService floodlightProvider;
 	protected IRestApiService restApi;
@@ -220,7 +221,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		}
 		return hexcontents.toString();
 	}
-	
+	public short generateRandomPortNumber(){
+		Random rnd = new Random();
+		return (short)(rnd.nextInt()&0x0000ffff );
+		
+	}
 	private net.floodlightcontroller.core.IListener.Command PacketInMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
 		packetCounter++;
@@ -257,130 +262,51 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Connection e2IFlow = null;
 			byte[] srcIP = null;
 			
-			boolean forward_packet = false;
-			boolean install_rules = false;
+			boolean forward_packet = true;
+			boolean install_rules = true;
+			String portPairKey = null;
+			short newSrcPort = 0;
 			
 			if(connMap.containsKey(key)){	
 				e2IFlow = connMap.get(key);
-				srcIP = IPv4.toIPv4AddressBytes(e2IFlow.getSrcIP());
-				System.err.println("Contains Key:" + conn.getConnectionSimplifiedKeyString());
-				if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
-					System.err.println("FIXME. currently replace exiting item");
-					forward_packet = true;
-					install_rules = true;		
-					/*
-					byte conn_state = e2IFlow.getState();
-					byte state = extractStateFromEthernet(eth);
-					short id = extractIDFromEthernet(eth);
-					if((conn_state==0x0C) && (state==0x00) ){
-						System.err.println("Regular packet, and the path is ready");
-						install_rules = true;
-						forward_packet = true;
-					}
-					else if(conn_state==0x0C){
-						System.err.println("Constructor packet, but the path is ready, ignore!");
-						install_rules = false;
-						forward_packet = false;
-					}
-					else if(state == 0x00){
-						install_rules = false;
-						forward_packet = false;
-						byte missing_state = (byte)((byte)0x0c - conn_state);
-						boolean test = (((OFPacketIn)msg).getBufferId()==OFPacketOut.BUFFER_ID_NONE);
-						System.err.println("Regular packet, but the path is not ready. sending out setup requesting packet "+
-									String.valueOf(missing_state)+" "+test);
-						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
-								IPv4.toIPv4AddressBytes(e2IFlow.dstIP), IPv4.toIPv4AddressBytes(e2IFlow.srcIP),
-								e2IFlow.dstPort, e2IFlow.srcPort, outside_port, missing_state,eth); 
-					}
-					else if(conn_state == state){
-						System.err.println("repeated Constructor packet and path is not ready");
-						install_rules = false;
-						forward_packet = false;
-					}
-					else{
-						if(state == 0x04){
-							System.err.println("Useful constructor packet up ");
-							e2IFlow.setState((byte)(state|conn_state));
-							int tmp_ip = ((id&0x0000ffff)<<16) |e2IFlow.getOriginalIP() ;
-							e2IFlow.setOriginalIP(tmp_ip);
-						}
-						else if(state == 0x08){
-							System.err.println("Useful constructor packet down");
-							e2IFlow.setState((byte)(state|conn_state));
-							int tmp_ip = id&0x0000ffff |e2IFlow.getOriginalIP();
-							e2IFlow.setOriginalIP(tmp_ip);
-						}
-						else{
-							System.err.println("Error state packet"+state);
-						}
-						forward_packet = false;
-						if(e2IFlow.getState()==0x0C){
-							
-							String real_src = IPv4.fromIPv4Address(e2IFlow.getOriginalIP());
-							String real_dst = IPv4.fromIPv4Address(e2IFlow.getDstIP());
-							System.err.println("path is ready:"+real_src+":"+e2IFlow.srcPort+"=>"+real_dst+":"+real_dst);
-							install_rules = true;
-						}
-					}
-					*/
-				}
-				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
-					System.err.println("[old]Ignore I2E connections temporarily");
-				}
-			}/* has found such connection */
-			else{ /* no such connection */
-				System.err.println("New connection: src:" + IPv4.fromIPv4Address(conn.srcIP)+ ":"+
-						" dst:"+IPv4.fromIPv4Address(conn.dstIP));
+				srcIP = IPv4.toIPv4AddressBytes(e2IFlow.getSrcIP());	
+				forward_packet = true;
+				install_rules = true;	
+			}
+			else{ 
 				install_rules = true;
 				forward_packet = true;
-				System.err.println("FIXME: Src port mapping");
-				/*
-				 if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
-					connMap.put(key, conn);
-					byte state = extractStateFromEthernet(eth);
-					short id = extractIDFromEthernet(eth);
-					
-					if(state==0x00){
-						System.err.println(conn+" first packet, non-constructor packet, sending setup requesting packet");	
-						forwardPacketForLosingPkt(sw,(OFPacketIn)msg,nw_gw_mac_address,
-								IPv4.toIPv4AddressBytes(conn.dstIP), IPv4.toIPv4AddressBytes(conn.srcIP),
-								conn.dstPort, conn.srcPort, outside_port, (byte)0x0c,eth); 
-					}
-					else if(state==0x04){
-						conn.setState(state);
-						System.err.println(conn+" first packet, set state "+state+" ");
-						int tmp_ip = id<<16;
-						conn.setOriginalIP(tmp_ip);
-					}
-					else if(state == 0x08){
-						conn.setState(state);
-						System.err.println(conn+" first packet, set state "+state);
-						int tmp_ip = id&0x0000ffff;
-						conn.setOriginalIP(tmp_ip);
-					}
-					else{
-						System.err.println("new "+conn+" error state "+state);
-					}
-					install_rules = false;
-					forward_packet = false;
-					clearMaps();
-				
-				}
-				else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
-					System.err.println("[new]Ignore I2E connections temporarily");
-					install_rules = false;
-					forward_packet = false;
-				}
-				else{
-					logger.LogError("shouldn't come here 2 "+conn);
-					System.err.println("5:"+conn);
-					return Command.CONTINUE;
-				}
-				*/
-			}/*No such connections*/
+			}
 			
-			/*Not installing rules implies not installing forwarding packet*/
+			if(conn.type==Connection.EXTERNAL_TO_INTERNAL){
+				StringBuilder sb = new StringBuilder();
+				sb.append(conn.getSrcPort());
+				sb.append(':');
+				sb.append(conn.getDstPort());
+				portPairKey = sb.toString();
+				int count = 0;
+				short port = 0;
+				while(portPairSet.contains(portPairKey)){
+					port = generateRandomPortNumber();
+					sb = new StringBuilder();
+					sb.append(port);
+					sb.append(':');
+					sb.append(conn.getDstPort());
+					portPairKey = sb.toString();
+					count++;
+					if(count > 5){
+						System.err.println("Fail to find available port pair");
+						return Command.CONTINUE;
+					}
+				}
+				newSrcPort = port;
+				portPairSet.add(portPairKey);
+			}
+			else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
+				System.err.println("[old]Ignore I2E connections temporarily");
+				return Command.CONTINUE;
+			}
+			
 			if(install_rules==false)
 				return Command.CONTINUE;
 			
@@ -393,61 +319,61 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
  			short outPort = 0;
  			boolean result1 = true;
  			
- 			if(conn.type == Connection.EXTERNAL_TO_INTERNAL){
- 				//set rule forward traffic out
-				System.err.println("FIXME: set two rules for e2i conns, remember src transformation");
-				match = new OFMatch();
-				match.setDataLayerType((short)0x0800);
-				//10.0.1.60
-				match.setNetworkDestination(IPv4.toIPv4Address(switchPrivateIP));
-				//10.0.1.61
-				match.setNetworkSource(conn.getHoneyPot().getIpAddrInt());
-				match.setTransportSource(conn.dstPort);
-				match.setTransportDestination(conn.srcPort);
-				match.setNetworkProtocol(conn.getProtocol());
-				match.setWildcards(	OFMatch.OFPFW_IN_PORT|
-					OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-					OFMatch.OFPFW_NW_TOS |   
-					OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
-				newSrcMAC = switchPublicMac; //seems it doesn't matter
-				newDstMAC = ec2PublicNetGWMac;
-				outPort = OFPort.OFPP_LOCAL.getValue(); 
-				newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
-				newDstIP = IPv4.toIPv4AddressBytes(conn.srcIP);	
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
-					
-				match = new OFMatch();	
-				match.setDataLayerType((short)0x0800);
-				match.setNetworkDestination(conn.dstIP);
-				match.setNetworkSource(conn.srcIP);
-				match.setTransportSource(conn.srcPort);
-				match.setTransportDestination(conn.dstPort);
-				//match.setInputPort(pktInMsg.getInPort());
-				match.setNetworkProtocol(conn.getProtocol());
-				match.setWildcards(OFMatch.OFPFW_IN_PORT |	
-						OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
-						 OFMatch.OFPFW_NW_TOS |   
-						OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP);
-				newDstMAC = ec2PrivateNetGWMac;
-				newSrcMAC = switchPrivateMac;
-				newDstIP = conn.getHoneyPot().getIpAddress();
-				newSrcIP = switchPrivateIP;
-				outPort = conn.getHoneyPot().getOutPort();
-				boolean result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
-				result1 &= result2;
-			}
-			else if(conn.type == Connection.INTERNAL_TO_EXTERNAL){
-				System.err.println("ignoring installing rules ofr I2E flows");
-				
-			}
+			//set rule forward traffic out
+			System.err.println("FIXME: set two rules for e2i conns, remember src transformation");
+			short dstPort = conn.srcPort;
+			if(newSrcPort!=0)
+				dstPort = newSrcPort;
+			match = new OFMatch();
+			match.setDataLayerType((short)0x0800);
+			//10.0.1.60
+			match.setNetworkDestination(IPv4.toIPv4Address(switchPrivateIP));
+			//10.0.1.61
+			match.setNetworkSource(conn.getHoneyPot().getIpAddrInt());
+			match.setTransportSource(conn.dstPort);
+			match.setTransportDestination(dstPort);
+			match.setNetworkProtocol(conn.getProtocol());
+			match.setWildcards(	OFMatch.OFPFW_IN_PORT|
+				OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+				OFMatch.OFPFW_NW_TOS |   
+				OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP );
+			newSrcMAC = switchPublicMac; //seems it doesn't matter
+			newDstMAC = ec2PublicNetGWMac;
+			outPort = OFPort.OFPP_LOCAL.getValue(); 
+			newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
+			newDstIP = IPv4.toIPv4AddressBytes(conn.srcIP);	
+			if(newSrcPort==0)
+				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 			else{
-				logger.LogError("shouldn't come here 3 "+conn);
-				return Command.CONTINUE;
-			}
- 			
- 			boolean result2 = true;
+				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,conn.srcPort,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
+			}	
+			match = new OFMatch();	
+			match.setDataLayerType((short)0x0800);
+			match.setNetworkDestination(conn.dstIP);
+			match.setNetworkSource(conn.srcIP);
+			match.setTransportSource(conn.srcPort);
+			match.setTransportDestination(conn.dstPort);
+			//match.setInputPort(pktInMsg.getInPort());
+			match.setNetworkProtocol(conn.getProtocol());
+			match.setWildcards(OFMatch.OFPFW_IN_PORT |	
+					OFMatch.OFPFW_DL_DST | OFMatch.OFPFW_DL_SRC | 	
+					 OFMatch.OFPFW_NW_TOS |   
+					OFMatch.OFPFW_DL_VLAN |OFMatch.OFPFW_DL_VLAN_PCP);
+			newDstMAC = ec2PrivateNetGWMac;
+			newSrcMAC = switchPrivateMac;
+			newDstIP = conn.getHoneyPot().getIpAddress();
+			newSrcIP = switchPrivateIP;
+			outPort = conn.getHoneyPot().getOutPort();
+			boolean result2 = false;
+			if(newSrcPort==0)
+				result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+			else
+				result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)newSrcPort,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+
+			result1 &= result2;
+
  			if(forward_packet)
- 				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newDstIP,srcIP,outPort);
+ 				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newDstIP,srcIP,newSrcPort,(short)0,outPort);
 			
 			if(!result1 || !result2){
 				logger.LogError("fail to install rule for "+conn);
@@ -564,7 +490,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		byte[] newDstIP = null;
 		short outPort = OFPort.OFPP_CONTROLLER.getValue();
 		boolean result = 
-				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
+				installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)0, (short)0,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
 		
 		if(!result){
 			logger.LogError("fail to create default rule1 for ec2");
@@ -585,7 +511,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_CONTROLLER.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0, (short)0,outPort,(short)0, (short)0,CONTROLLER_PRIORITY);
 		if(!result){
 			logger.LogError("fail to create default rule2 for ec2");
 			System.exit(1);
@@ -603,7 +529,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0, (short)0,outPort,(short)0, (short)0,NORMAL_PRIORITY);
 		if(!result){
 			logger.LogError("fail to create default rule5 for ec2");
 			System.exit(1);
@@ -620,7 +546,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				OFMatch.OFPFW_TP_SRC | OFMatch.OFPFW_TP_DST |   
 				OFMatch.OFPFW_IN_PORT);
 		outPort = OFPort.OFPP_NORMAL.getValue();
-		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,outPort,(short)0, (short)0,NORMAL_PRIORITY);
+		result = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0, (short)0,outPort,(short)0, (short)0,NORMAL_PRIORITY);
 		if(!result){
 			logger.LogError("fail to create default rule6 for ec2");
 			System.exit(1);
@@ -771,7 +697,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 	
 	public boolean forwardPacket(IOFSwitch sw, OFPacketIn pktInMsg, 
-			byte srcMac[], byte[] dstMac, byte[] destIP, byte[] srcIP, short outSwPort) 
+			byte srcMac[], byte[] dstMac, byte[] destIP, byte[] srcIP, short newSrcPort, short newDstPort, short outSwPort) 
     {
         OFPacketOut pktOut = new OFPacketOut();        
         
@@ -804,7 +730,18 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			actions.add(action_mod_src_ip);
 			actionLen += OFActionNetworkLayerSource.MINIMUM_LENGTH;
 		}
-		
+		if(newSrcPort != 0){
+			OFActionTransportLayerSource action_mod_src_port = 
+					new OFActionTransportLayerSource(newSrcPort);
+			actions.add(action_mod_src_port);
+			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
+		}
+		if(newDstPort != 0){
+			OFActionTransportLayerDestination action_mod_dst_port = 
+					new OFActionTransportLayerDestination(newDstPort);
+			actions.add(action_mod_dst_port);
+			actionLen += OFActionTransportLayerDestination.MINIMUM_LENGTH;
+		}
 		OFActionOutput action_out_port;
 		actionLen += OFActionOutput.MINIMUM_LENGTH;
 		if(pktInMsg.getInPort() == outSwPort){
@@ -852,7 +789,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	private boolean installPathForFlow(long swID,short inPort,OFMatch match, 
 			short flowFlag, long flowCookie, 
 			byte[] newSrcMAC, byte[] newDstMAC, 
-			byte[] newSrcIP, byte[] newDstIP, short outPort, 
+			byte[] newSrcIP, byte[] newDstIP, 
+			short newSrcPort,short newDstPort, 
+			short outPort, 
 			short idleTimeout, short hardTimeout,short priority) {
 		IOFSwitch sw = floodlightProvider.getSwitch(swID);
 		if(sw == null){
@@ -901,6 +840,18 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					IPv4.toIPv4Address(newSrcIP));
 			actions.add(action_mod_src_ip);
 			actionLen += OFActionNetworkLayerSource.MINIMUM_LENGTH;
+		}
+		if(newSrcPort != 0){
+			OFActionTransportLayerSource action_mod_src_port = 
+					new OFActionTransportLayerSource(newSrcPort);
+			actions.add(action_mod_src_port);
+			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
+		}
+		if(newDstPort != 0){
+			OFActionTransportLayerDestination action_mod_dst_port = 
+					new OFActionTransportLayerDestination(newDstPort);
+			actions.add(action_mod_dst_port);
+			actionLen += OFActionTransportLayerDestination.MINIMUM_LENGTH;
 		}
 		OFActionOutput action_out_port;
 		actionLen += OFActionOutput.MINIMUM_LENGTH;
@@ -1104,6 +1055,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	    HIHAvailabilityMap = new Hashtable<String,Boolean>();
 	    HIHClientMap = new Hashtable<String, HashSet<Integer> >();
 	    HIHNameMap = new Hashtable<Long, String>();
+	    portPairSet = new HashSet<String>();
 	    HIHFlowCount = new Hashtable<String, Integer>();
 	    executor = Executors.newFixedThreadPool(1);
 	    logger = new MyLogger(); 

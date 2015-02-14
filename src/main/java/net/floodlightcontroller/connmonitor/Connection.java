@@ -12,7 +12,9 @@ import net.floodlightcontroller.packet.UDP;
 
 public class Connection {
 	int dstIP, srcIP;
-	short srcPort, dstPort;
+	short srcPort, dstPort, newSrcPort;
+	
+
 	String errorInfo;
 	
 
@@ -52,6 +54,7 @@ public class Connection {
 		dstPort = i2eConn.srcPort;
 		srcIP = i2eConn.dstIP;
 		srcPort = i2eConn.dstPort;
+		newSrcPort = i2eConn.getNewSrcPort();
 		
 		startTime = System.currentTimeMillis();
 		
@@ -90,6 +93,7 @@ public class Connection {
 		pot = null;
 		startTime = System.currentTimeMillis();
 		flag = 0;
+		newSrcPort = 0;
 
 		IPacket pkt = eth.getPayload();
 		if(pkt instanceof IPv4){	 
@@ -259,11 +263,16 @@ public class Connection {
 	public short getType() {
 		return type;
 	}
-
 	public void setType(short type) {
 		this.type = type;
 	}
-
+	public short getNewSrcPort() {
+		return newSrcPort;
+	}
+	public void setNewSrcPort(short newSrcPort) {
+		this.newSrcPort = newSrcPort;
+	}
+	
 	public String toString(){
 		String dstIP_str = IPv4.fromIPv4Address(dstIP);
 		String srcIP_str = IPv4.fromIPv4Address(srcIP);
