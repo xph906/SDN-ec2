@@ -80,8 +80,7 @@ import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOFMessageListener, IOFSwitchListener, IConnMonitorService {
 	//FIXME: move these to configure file
 	static short HARD_TIMEOUT = 0;
-	/*For test*/
-	static short IDLE_TIMEOUT = 30;
+	static short IDLE_TIMEOUT = 300;
 	
 	static short HIH_HARD_TIMEOUT = 300;
 	static short HIH_IDLE_TIMEOUT = 60;
@@ -288,10 +287,6 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				portPairKey = sb.toString();
 				int count = 0;
 				short port = 0;
-				/*For test*/
-				if(conn.srcIP==IPv4.toIPv4Address("130.107.224.224")){
-					port = (short)18821;
-				}
 				
 				while(portPairSet.contains(portPairKey)){
 					port = generateRandomPortNumber();
