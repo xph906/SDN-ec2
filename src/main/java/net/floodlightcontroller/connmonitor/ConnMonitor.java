@@ -242,7 +242,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Connection conn = new Connection(eth);
 			if(conn.srcIP==0 || conn.type==Connection.INVALID){
 				droppedCounter++;
-				System.err.println("give up beacause of not effective connection:"+conn);
+				//System.err.println("give up beacause of not effective connection:"+conn);
 				return Command.CONTINUE;
 			}
 
@@ -255,7 +255,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			HoneyPot pot = getHoneypotFromConnection(conn);
 			if(pot == null){
 				droppedCounter++;
-				System.err.println("give up because of no appropriate pot:"+conn);
+				//System.err.println("give up because of no appropriate pot:"+conn);
 				return Command.CONTINUE;
 			}
 			conn.setHoneyPot(pot);
