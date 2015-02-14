@@ -411,7 +411,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			int dstIP = removedMsg.getMatch().getNetworkDestination();
 			int srcIP = removedMsg.getMatch().getNetworkSource();
 			short srcPort = removedMsg.getMatch().getTransportSource();
-			short dstPort = removedMsg.getMatch().getTransportSource();
+			short dstPort = removedMsg.getMatch().getTransportDestination();
 			if(dstIP == IPv4.toIPv4Address(switchPublicIP)){
 				StringBuilder sb = new StringBuilder();
 				sb.append(srcPort);
