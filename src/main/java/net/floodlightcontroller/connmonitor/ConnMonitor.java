@@ -248,7 +248,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 
 			//only deal with udp and tcp
 			if((conn.getProtocol()!= 0x11) && (conn.getProtocol()!= 0x06)){
-				System.err.println("give up because of not ip:"+conn);
+				//System.err.println("give up because of not ip:"+conn);
 				return Command.CONTINUE;
 			}
 			
@@ -417,8 +417,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				sb.append(srcPort);
 				sb.append(':');
 				sb.append(dstPort);
-				if(portPairSet.remove(sb.toString()) == false){
+				if(portPairSet.remove(sb.toString()) == false){			
 					System.err.println("FlowRemovedMsgHandler can't find port pair "+sb.toString());
+					System.err.println(IPv4.fromIPv4Address(srcIP)+" to "+IPv4.fromIPv4Address(dstIP));
 				}
 				else{
 					System.err.println("Successfully removed port: size:"+portPairSet.size());
