@@ -80,7 +80,9 @@ import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOFMessageListener, IOFSwitchListener, IConnMonitorService {
 	//FIXME: move these to configure file
 	static short HARD_TIMEOUT = 0;
-	static short IDLE_TIMEOUT = 300;
+	/*For test*/
+	static short IDLE_TIMEOUT = 30;
+	
 	static short HIH_HARD_TIMEOUT = 300;
 	static short HIH_IDLE_TIMEOUT = 60;
 	static short DELTA = 50;
@@ -286,6 +288,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 				portPairKey = sb.toString();
 				int count = 0;
 				short port = 0;
+				/*For test*/
+				if(conn.srcIP==IPv4.toIPv4Address("130.107.224.224")){
+					port = (short)18821;
+				}
+				
 				while(portPairSet.contains(portPairKey)){
 					port = generateRandomPortNumber();
 					sb = new StringBuilder();
@@ -299,8 +306,15 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 						return Command.CONTINUE;
 					}
 				}
+				if(port != 0){
+					System.err.println("Switch src port to "+port);
+				}
 				newSrcPort = port;
 				portPairSet.add(portPairKey);
+				if(portPairSet.size()>CONN_MAX_SIZE){
+					System.err.println("Clear portPair Table");
+					portPairSet.clear();
+				}
 			}
 			else if(conn.type==Connection.INTERNAL_TO_EXTERNAL){
 				System.err.println("[old]Ignore I2E connections temporarily");
@@ -343,9 +357,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			newSrcIP = IPv4.toIPv4AddressBytes(conn.dstIP);	
 			newDstIP = IPv4.toIPv4AddressBytes(conn.srcIP);	
 			if(newSrcPort==0)
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
+				result1 = installPathForFlow(sw.getId(),(short)0,match,OFFlowMod.OFPFF_SEND_FLOW_REM,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 			else{
-				result1 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,conn.srcPort,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
+				result1 = installPathForFlow(sw.getId(),(short)0,match,OFFlowMod.OFPFF_SEND_FLOW_REM,(long)0, newSrcMAC,newDstMAC,newSrcIP,newDstIP,(short)0,conn.srcPort,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);
 			}	
 			match = new OFMatch();	
 			match.setDataLayerType((short)0x0800);
@@ -366,9 +380,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			outPort = conn.getHoneyPot().getOutPort();
 			boolean result2 = false;
 			if(newSrcPort==0)
-				result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+				result2 = installPathForFlow(sw.getId(),(short)0,match,OFFlowMod.OFPFF_SEND_FLOW_REM,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)0,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 			else
-				result2 = installPathForFlow(sw.getId(),(short)0,match,(short)0,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)newSrcPort,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
+				result2 = installPathForFlow(sw.getId(),(short)0,match,OFFlowMod.OFPFF_SEND_FLOW_REM,(long)0,newSrcMAC, newDstMAC,newSrcIP,newDstIP,(short)newSrcPort,(short)0,outPort,IDLE_TIMEOUT,HARD_TIMEOUT,DEFAULT_PRIORITY);			
 
 			result1 &= result2;
 
@@ -389,6 +403,28 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 	private net.floodlightcontroller.core.IListener.Command FlowRemovedMsgHandler(
 			IOFSwitch sw, OFMessage msg, FloodlightContext cntx){
+		if(msg instanceof OFFlowRemoved){
+			OFFlowRemoved removedMsg = (OFFlowRemoved)msg;
+			if(removedMsg.getReason()==OFFlowRemoved.OFFlowRemovedReason.OFPRR_DELETE){
+				return Command.CONTINUE;
+			}
+			int dstIP = removedMsg.getMatch().getNetworkDestination();
+			int srcIP = removedMsg.getMatch().getNetworkSource();
+			short srcPort = removedMsg.getMatch().getTransportSource();
+			short dstPort = removedMsg.getMatch().getTransportSource();
+			if(dstIP == IPv4.toIPv4Address(switchPublicIP)){
+				StringBuilder sb = new StringBuilder();
+				sb.append(srcPort);
+				sb.append(':');
+				sb.append(dstPort);
+				if(portPairSet.remove(sb.toString()) == false){
+					System.err.println("FlowRemovedMsgHandler can't find port pair "+sb.toString());
+				}
+				else{
+					System.err.println("Successfully removed port: size:"+portPairSet.size());
+				}
+			}
+		}
 		return Command.CONTINUE;
 	}
 	
@@ -402,6 +438,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			PacketInMsgHandler(sw,msg,cntx);
 			return Command.CONTINUE;    
 		}	
+		else if(msg.getType() == OFType.FLOW_REMOVED){
+			return FlowRemovedMsgHandler(sw,msg,cntx);
+		}
 		return Command.CONTINUE;    
 	}
 
