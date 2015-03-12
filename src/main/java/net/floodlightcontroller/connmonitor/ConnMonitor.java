@@ -770,6 +770,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					new OFActionTransportLayerSource(newSrcPort);
 			actions.add(action_mod_src_port);
 			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
+			int x = newSrcPort & 0x0000ffff;
+			System.err.println("forward change port to: "+x);
+		}
+		else{
+			System.err.println("forward doesn't  port to: ");
 		}
 		if(newDstPort != 0){
 			OFActionTransportLayerDestination action_mod_dst_port = 
@@ -884,6 +889,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 					new OFActionTransportLayerSource(newSrcPort);
 			actions.add(action_mod_src_port);
 			actionLen += OFActionTransportLayerSource.MINIMUM_LENGTH;
+			int x = newSrcPort & 0x0000ffff;
+			System.err.println("change port to: "+x);
+		}
+		else{
+			System.err.println("doesn't change port to: ");
 		}
 		if(newDstPort != 0){
 			OFActionTransportLayerDestination action_mod_dst_port = 
