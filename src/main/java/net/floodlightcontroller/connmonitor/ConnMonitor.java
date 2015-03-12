@@ -382,7 +382,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			result1 &= result2;
 
  			if(forward_packet)
- 				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newDstIP,srcIP,newSrcPort,(short)0,outPort);
+ 				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newSrcIP,newDstIP,newSrcPort,(short)0,outPort);
 			
 			if(!result1 || !result2){
 				logger.LogError("fail to install rule for "+conn);
@@ -732,7 +732,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 	
 	public boolean forwardPacket(IOFSwitch sw, OFPacketIn pktInMsg, 
-			byte srcMac[], byte[] dstMac, byte[] destIP, byte[] srcIP, short newSrcPort, short newDstPort, short outSwPort) 
+			byte srcMac[], byte[] dstMac,  byte[] srcIP,byte[] destIP, short newSrcPort, short newDstPort, short outSwPort) 
     {
         OFPacketOut pktOut = new OFPacketOut();        
         
@@ -828,11 +828,14 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			short newSrcPort,short newDstPort, 
 			short outPort, 
 			short idleTimeout, short hardTimeout,short priority) {
+		
 		IOFSwitch sw = floodlightProvider.getSwitch(swID);
 		if(sw == null){
 			logger.LogError("deleteFlows fail getting switch [installPathForFlow]");
 			return false;
 		}
+		long time = System.currentTimeMillis()/1000;
+		System.err.println("preparing install path "+time);
 		
 		OFFlowMod rule = new OFFlowMod();
 		if (flowFlag != (short) 0) {
@@ -902,6 +905,9 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 		try {
 			sw.write(rule, null);
 			sw.flush();
+			time = System.currentTimeMillis()/1000;
+			System.err.println("finished installing path "+time);
+			
 		} catch (IOException e) {
 			logger.LogError("fail to install rule: " + rule);
 			return false;
