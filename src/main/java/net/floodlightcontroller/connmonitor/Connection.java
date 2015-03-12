@@ -26,7 +26,7 @@ public class Connection {
 	private long startTime;
 	//static Date currentTime = new Date();
 	byte flag;
-	
+	byte ecn;
 	int originalIP;
 	byte state;
 	
@@ -94,6 +94,7 @@ public class Connection {
 		startTime = System.currentTimeMillis();
 		flag = 0;
 		newSrcPort = 0;
+		ecn = 0;
 
 		IPacket pkt = eth.getPayload();
 		if(pkt instanceof IPv4){	 
@@ -101,7 +102,7 @@ public class Connection {
 			IPv4 ip = (IPv4)pkt;
 			dstIP = ip.getDestinationAddress();
 			srcIP = ip.getSourceAddress();
-			
+			ecn = ip.getDiffServ();
 			int src1 = (srcIP>>24)&0xff;
 			int src2 = (srcIP>>16)&0xff;
 			int dst1 = (dstIP>>24)&0xff;
@@ -146,6 +147,14 @@ public class Connection {
 		//	 System.err.println("debug... packet is not tcp/udp "+pkt);
 		 }
 	} 
+	public byte getEcn() {
+		return ecn;
+	}
+
+	public void setEcn(byte ecn) {
+		this.ecn = ecn;
+	}
+
 	public void setState(byte pkt_state){
 		state = pkt_state;
 	}

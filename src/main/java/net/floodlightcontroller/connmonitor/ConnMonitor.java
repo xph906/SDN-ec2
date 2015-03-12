@@ -238,6 +238,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			Ethernet eth =
 	                IFloodlightProviderService.bcStore.get(cntx,
 	                                            IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+			
 			Connection conn = new Connection(eth);
 			if(conn.srcIP==0 || conn.type==Connection.INVALID){
 				droppedCounter++;
@@ -260,6 +261,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			conn.setHoneyPot(pot);
 			Long key = conn.getConnectionSimplifiedKey();
 	
+			if(conn.getEcn() != 0x00){
+				System.err.println("currently don't handle setup packet");
+				return Command.CONTINUE;
+			}
+			
 			Connection e2IFlow = null;
 			byte[] srcIP = null;
 			
@@ -331,8 +337,11 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 			//set rule forward traffic out
 			System.err.println("FIXME: set two rules for e2i conns, remember src transformation");
 			short dstPort = conn.srcPort;
-			if(newSrcPort!=0)
+			if(newSrcPort!=0){
 				dstPort = newSrcPort;
+				int x = newSrcPort & 0x0000ffff;
+				System.err.println("This connection's port has beenc changed to "+x);
+			}
 			match = new OFMatch();
 			match.setDataLayerType((short)0x0800);
 			//10.0.1.60
