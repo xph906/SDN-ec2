@@ -263,7 +263,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 	
 			if(conn.getEcn() != 0x00){
 				System.err.println("currently don't handle setup packet");
-				return Command.CONTINUE;
+				//return Command.CONTINUE;
 			}
 			
 			Connection e2IFlow = null;
@@ -390,7 +390,7 @@ public class ConnMonitor extends ForwardingBase implements IFloodlightModule,IOF
 
 			result1 &= result2;
 
- 			if(forward_packet)
+ 			if(forward_packet && conn.getEcn()==0x00)
  				result2 = forwardPacket(sw,pktInMsg,newSrcMAC,newDstMAC,newSrcIP,newDstIP,newSrcPort,(short)0,outPort);
 			
 			if(!result1 || !result2){
